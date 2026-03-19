@@ -92,7 +92,7 @@ class CronService:
                 for j in data.get("jobs", []):
                     jobs.append(CronJob(
                         id=j["id"],
-                        name=j["name"],
+                         name=j["name"],
                         enabled=j.get("enabled", True),
                         schedule=CronSchedule(
                             kind=j["schedule"]["kind"],

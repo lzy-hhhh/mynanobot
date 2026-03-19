@@ -15,7 +15,7 @@ class CronTool(Tool):
         self._cron = cron_service
         self._channel = ""
         self._chat_id = ""
-        self._in_cron_context: ContextVar[bool] = ContextVar("cron_in_context", default=False)
+        self._in_cron_context: ContextVar[bool] = ContextVar("cron_in_context", default=False)#使用ContextVar来跟踪当前是否在cron job的执行上下文中，这样在执行add操作时可以检查并防止在cron job内部再次添加新任务，避免潜在的递归问题和资源泄漏。
 
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current session context for delivery."""

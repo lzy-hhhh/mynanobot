@@ -1,6 +1,6 @@
 """Base class for agent tools."""
 
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod#提供一个抽象基类，定义了工具的基本接口和功能，包括名称、描述、参数定义、执行方法以及参数验证和转换等。所有具体工具都应该继承这个基类，并实现相应的方法，以确保它们能够被代理正确识别和调用。
 from typing import Any
 
 
@@ -19,7 +19,7 @@ class Tool(ABC):
         "boolean": bool,
         "array": list,
         "object": dict,
-    }
+    }#定义了一个类型映射字典，将JSON Schema中的基本类型（string、integer、number、boolean、array、object）映射到Python的内置类型（str、int、float、bool、list、dict）。这个映射用于在参数验证和转换过程中，根据工具定义的参数类型来检查和转换传入的参数值，确保它们符合预期的类型要求。
 
     @property
     @abstractmethod
@@ -52,7 +52,7 @@ class Tool(ABC):
         """
         pass
 
-    def cast_params(self, params: dict[str, Any]) -> dict[str, Any]:
+    def cast_params(self, params: dict[str, Any]) -> dict[str, Any]:#把 AI 传来的字符串 / 弱类型参数，安全转换成代码需要的类型
         """Apply safe schema-driven casts before validation."""
         schema = self.parameters or {}
         if schema.get("type", "object") != "object":
@@ -121,7 +121,7 @@ class Tool(ABC):
 
         return val
 
-    def validate_params(self, params: dict[str, Any]) -> list[str]:
+    def validate_params(self, params: dict[str, Any]) -> list[str]:#按照 JSON Schema 严格校验参数，返回错误列表
         """Validate tool parameters against JSON schema. Returns error list (empty if valid)."""
         if not isinstance(params, dict):
             return [f"parameters must be an object, got {type(params).__name__}"]
@@ -169,7 +169,7 @@ class Tool(ABC):
                 )
         return errors
 
-    def to_schema(self) -> dict[str, Any]:
+    def to_schema(self) -> dict[str, Any]:#把工具转换成 OpenAI 函数调用标准格式的字典表示，包含工具的名称、描述和参数定义等信息，以便代理能够正确识别和调用这个工具。这个方法返回一个符合 OpenAI 函数调用规范的字典结构，其中 "type" 字段指定了这是一个函数类型的工具，"function" 字段包含了工具的具体定义，包括名称、描述和参数等。
         """Convert tool to OpenAI function schema format."""
         return {
             "type": "function",
