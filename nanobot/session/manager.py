@@ -211,3 +211,86 @@ class SessionManager:
                 continue
 
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)
+
+    def get_session_messages(self, key: str) -> list[dict[str, Any]]:
+        """
+        Get all messages from a session.
+
+        Args:
+            key: Session key (channel:chat_id)
+
+        Returns:
+            List of message dictionaries.
+        """
+        # Always read from disk to get latest data (e.g., from WebChannel writes)
+        path = self._get_session_path(key)
+        if not path.exists():
+            legacy_path = self._get_legacy_session_path(key)
+            if legacy_path.exists():
+                try:
+                    shutil.move(str(legacy_path), str(path))
+                    logger.info("Migrated session {} from legacy path", key)
+                except Exception:
+                    logger.exception("Failed to migrate session {}", key)
+
+        if not path.exists():
+            return []
+
+        messages = []
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    if data.get("_type") != "metadata":
+                        messages.append(data)
+        except Exception as e:
+            logger.warning("Failed to load session messages {}: {}", key, e)
+
+        return messages
+
+    def delete_session(self, key: str) -> bool:
+        """
+        Delete a session.
+
+        Args:
+            key: Session key (channel:chat_id)
+
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        try:
+            # Remove from cache
+            self._cache.pop(key, None)
+
+            # Delete session file
+            path = self._get_session_path(key)
+            if path.exists():
+                path.unlink()
+                logger.info("Deleted session: {}", key)
+                return True
+
+            return False
+        except Exception as e:
+            logger.error("Failed to delete session {}: {}", key, e)
+            return False
+
+    def create_session(self, key: str, title: str = None) -> Session:
+        """
+        Create a new session with the given key.
+
+        Args:
+            key: Session key (channel:chat_id)
+            title: Optional title for the session
+
+        Returns:
+            The newly created session
+        """
+        session = Session(key=key)
+        if title:
+            session.metadata["title"] = title
+        self._cache[key] = session
+        self.save(session)
+        return session

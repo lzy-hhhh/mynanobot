@@ -60,6 +60,11 @@ matrix = [
 langsmith = [
     "langsmith>=0.1.0",
 ]
+web = [
+    "fastapi>=0.109.0,<1.0.0",
+    "uvicorn>=0.27.0,<1.0.0",
+    "sse-starlette>=2.0.0,<3.0.0",
+]
 dev = [
     "pytest>=9.0.0,<10.0.0",
     "pytest-asyncio>=1.3.0,<2.0.0",
@@ -85,6 +90,9 @@ include = [
     "nanobot/templates/**/*.md",
     "nanobot/skills/**/*.md",
     "nanobot/skills/**/*.sh",
+    "nanobot/web/**/*.html",
+    "nanobot/web/**/*.css",
+    "nanobot/web/**/*.js",
 ]
 
 [tool.hatch.build.targets.wheel]

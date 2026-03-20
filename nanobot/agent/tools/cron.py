@@ -102,7 +102,7 @@ class CronTool(Tool):
         if not message:
             return "Error: message is required for add"
         if not self._channel or not self._chat_id:
-            return "Error: no session context (channel/chat_id)"
+            return f"Error: no session context (channel={self._channel}, chat_id={self._chat_id})"
         if tz and not cron_expr:
             return "Error: tz can only be used with cron_expr"
         if tz:

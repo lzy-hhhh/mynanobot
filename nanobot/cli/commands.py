@@ -396,6 +396,8 @@ def gateway(
     workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace directory"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     config: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
+    web: bool = typer.Option(False, "--web", help="Enable web UI server"),
+    web_port: int = typer.Option(18791, "--web-port", help="Web UI port"),
 ):
     """Start the nanobot gateway."""
     from nanobot.agent.loop import AgentLoop
@@ -578,6 +580,43 @@ def gateway(
     asyncio.run(run())
 
 
+# ============================================================================
+# Web UI Command
+# ============================================================================
+
+
+@app.command()
+def web(
+    port: int = typer.Option(18791, "--port", "-p", help="Web UI port"),
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace directory"),
+    config: str | None = typer.Option(None, "--config", "-c", help="Config file path"),
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host address"),
+):
+    """Start the nanobot web UI server."""
+    import uvicorn
+    from nanobot.web.app import create_app
+
+    console.print(f"{__logo__} Starting nanobot web UI...")
+    console.print(f"  Host: {host}")
+    console.print(f"  Port: {port}")
+    console.print(f"  URL: http://localhost:{port}")
+    console.print()
+    console.print("[dim]Press Ctrl+C to stop the server[/dim]\n")
+
+    # Load config to initialize state
+    _load_runtime_config(config, workspace)
+
+    app = create_app()
+
+    try:
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+        )
+    except KeyboardInterrupt:
+        console.print("\nShutting down...")
 
 
 # ============================================================================

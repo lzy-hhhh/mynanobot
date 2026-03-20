@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nanobot - Web AI Assistant</title>
+    <style>
+        /* ============================================================
+           CSS Variables & Reset
+           ============================================================ */
+        :root {
+            --primary: #10a37f;
+            --primary-hover: #0d8a6a;
+            --primary-light: rgba(16, 163, 127, 0.1);
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-sidebar: #0f0f23;
+            --bg-input: #1a1a2e;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --text-muted: #6b6b80;
+            --border-color: #2a2a4a;
+            --success: #10a37f;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.4);
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ============================================================
+           Layout
+           ============================================================ */
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .nav {
+            flex: 1;
+            padding: 16px 0;
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            margin-bottom: 24px;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            padding: 0 20px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--primary-light);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--primary-light);
+            color: var(--primary);
+            border-left-color: var(--primary);
+        }
+
+        .nav-icon {
+            font-size: 18px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            height: 60px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            background: var(--bg-card);
+        }
+
+        .page-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: #3a3a5a;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Page Content */
+        .page-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* ============================================================
+           Dashboard Page
+           ============================================================ */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .card-icon {
+            font-size: 32px;
+            opacity: 0.8;
+        }
+
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+        }
+
+        .status-item-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.active { background: var(--success); }
+        .status-dot.inactive { background: var(--text-muted); }
+        .status-dot.warning { background: var(--warning); }
+
+        /* ============================================================
+           Chat Page
+           ============================================================ */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 140px);
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .message {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message-user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .message-assistant .message-avatar {
+            background: linear-gradient(135deg, var(--primary) 0%, #0d8a6a 100%);
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .message-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .message-body {
+            background: var(--bg-input);
+            padding: 16px;
+            border-radius: var(--radius);
+            line-height: 1.6;
+        }
+
+        .message-body p {
+            margin-bottom: 12px;
+        }
+
+        .message-body p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-body pre {
+            background: var(--bg-sidebar);
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            margin: 12px 0;
+        }
+
+        .message-body code {
+            background: var(--bg-sidebar);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+
+        .message-body pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .chat-input-container {
+            border-top: 1px solid var(--border-color);
+            padding: 20px;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            color: var(--text-primary);
+            font-size: 14px;
+            resize: none;
+            min-height: 50px;
+            max-height: 200px;
+            font-family: inherit;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .chat-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: var(--primary-hover);
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 16px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+
+        /* ============================================================
+           Channels Page
+           ============================================================ */
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .channel-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .channel-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .channel-name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--border-color);
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: var(--primary);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* ============================================================
+           Sessions Page
+           ============================================================ */
+        .sessions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .session-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .session-item:hover {
+            background: var(--bg-input);
+            transform: translateX(4px);
+        }
+
+        .session-info {
+            flex: 1;
+        }
+
+        .session-key {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .session-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .session-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ============================================================
+           Settings Page
+           ============================================================ */
+        .settings-section {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .settings-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-select {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-description {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* ============================================================
+           Modal
+           ============================================================ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            transform: translateY(-20px);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        /* ============================================================
+           Responsive
+           ============================================================ */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 100;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .channels-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ============================================================
+           Scrollbar
+           ============================================================ */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-sidebar);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a4a6a;
+        }
+
+        /* ============================================================
+           Loading Spinner
+           ============================================================ */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============================================================
+           Progress Steps
+           ============================================================ */
+        .progress-steps {
+            padding: 12px 16px;
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            margin-top: 8px;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            padding: 4px 0;
+        }
+
+        .progress-step.active {
+            color: var(--primary);
+        }
+
+        .progress-step.completed {
+            color: var(--success);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span class="logo">🤖</span>
+                <span class="logo-text">nanobot</span>
+            </div>
+
+            <nav class="nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Menu</div>
+                    <a class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+                        <span class="nav-icon">📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                    <a class="nav-item" data-page="chat" onclick="navigateTo('chat')">
+                        <span class="nav-icon">💬</span>
+                        <span>对话</span>
+                    </a>
+                    <a class="nav-item" data-page="channels" onclick="navigateTo('channels')">
+                        <span class="nav-icon">📡</span>
+                        <span>渠道管理</span>
+                    </a>
+                    <a class="nav-item" data-page="sessions" onclick="navigateTo('sessions')">
+                        <span class="nav-icon">📁</span>
+                        <span>会话管理</span>
+                    </a>
+                    <a class="nav-item" data-page="cron" onclick="navigateTo('cron')">
+                        <span class="nav-icon">⏰</span>
+                        <span>定时任务</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Settings</div>
+                    <a class="nav-item" data-page="settings" onclick="navigateTo('settings')">
+                        <span class="nav-icon">⚙️</span>
+                        <span>系统设置</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                    <h1 class="page-title" id="pageTitle">Dashboard</h1>
+                </div>
+                <div class="top-bar-actions">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="status-indicator"></div>
+                        <span style="font-size: 13px; color: var(--text-secondary);">在线</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page Container -->
+            <div class="page-container">
+                <!-- Dashboard Page -->
+                <div class="page active" id="dashboardPage">
+                    <div class="dashboard-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">系统状态</span>
+                                <span class="card-icon">🖥️</span>
+                            </div>
+                            <div class="card-value" id="systemStatus">运行中</div>
+                            <div class="card-subtitle" id="systemVersion">v0.1.4</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">当前模型</span>
+                                <span class="card-icon">🧠</span>
+                            </div>
+                            <div class="card-value" id="currentModel" style="font-size: 16px;">-</div>
+                            <div class="card-subtitle">默认 LLM 模型</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">定时任务</span>
+                                <span class="card-icon">⏰</span>
+                            </div>
+                            <div class="card-value" id="cronJobs">0</div>
+                            <div class="card-subtitle">已激活的任务</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">心跳</span>
+                                <span class="card-icon">💓</span>
+                            </div>
+                            <div class="card-value" id="heartbeatStatus">-</div>
+                            <div class="card-subtitle">检测间隔</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Provider 状态</span>
+                        </div>
+                        <div class="status-list" id="providerList">
+                            <div style="color: var(--text-muted); text-align: center; padding: 20px;">加载中...</div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header">
+                            <span class="card-title">渠道状态</span>
+                        </div>
+                        <div class="status-list" id="channelList">
+                            <div style="color: var(--text-muted); text-align: center; padding: 20px;">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Page -->
+                <div class="page" id="chatPage">
+                    <div class="chat-container" style="display: flex; height: 100%;">
+                        <!-- Session Sidebar -->
+                        <div style="width: 240px; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column;">
+                            <div style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 14px; font-weight: 600;">会话列表</span>
+                                <button class="btn btn-primary btn-sm" onclick="createNewSession()" title="新建会话">+</button>
+                            </div>
+                            <div id="chatSessionList" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                <div style="color: var(--text-muted); text-align: center; padding: 20px; font-size: 13px;">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Area -->
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <!-- Quick Actions Bar -->
+                            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-card); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span style="font-size: 13px; color: var(--text-muted);">快捷操作：</span>
+                                <button class="btn btn-secondary btn-sm" onclick="quickCreateCron('每天早上 9 点', '0 9 * * *')">⏰ 每日提醒</button>
+                                <button class="btn btn-secondary btn-sm" onclick="quickCreateCron('每周一上午 10 点', '0 10 * * 1')">📅 周报</button>
+                                <button class="btn btn-secondary btn-sm" onclick="quickCreateCron('每小时', '', 3600)">⏱️ 每小时</button>
+                                <button class="btn btn-secondary btn-sm" onclick="showMyCronJobs()">📋 我的任务</button>
+                            </div>
+
+                            <div class="chat-messages" id="chatMessages" style="flex: 1; overflow-y: auto;">
+                                <div class="message message-assistant">
+                                    <div class="message-avatar">🤖</div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="message-name">nanobot</span>
+                                            <span class="message-time" id="chatWelcomeTime"></span>
+                                        </div>
+                                        <div class="message-body">
+                                            你好！我是 nanobot，你的个人 AI 助手。有什么我可以帮助你的吗？
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="chat-input-container">
+                                <div class="chat-input-wrapper">
+                                    <textarea
+                                        class="chat-input"
+                                        id="chatInput"
+                                        placeholder="输入消息... (Shift+Enter 换行)"
+                                        rows="1"
+                                        onkeydown="handleChatKeydown(event)"
+                                    ></textarea>
+                                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                                        ➤
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Channels Page -->
+                <div class="page" id="channelsPage">
+                    <div class="channels-grid" id="channelsGrid">
+                        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
+                            <div class="spinner" style="margin: 0 auto 16px;"></div>
+                            加载中...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sessions Page -->
+                <div class="page" id="sessionsPage">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="font-size: 18px;">会话列表</h2>
+                        <button class="btn btn-primary" onclick="loadSessions()">🔄 刷新</button>
+                    </div>
+                    <div class="sessions-list" id="sessionsList">
+                        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
+                            暂无会话
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cron Jobs Page -->
+                <div class="page" id="cronPage">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="font-size: 18px;">定时任务</h2>
+                        <button class="btn btn-primary" onclick="showNewJobModal()">+ 新建任务</button>
+                    </div>
+                    <div class="sessions-list" id="cronJobsList">
+                        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
+                            暂无定时任务
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Page -->
+                <div class="page" id="settingsPage">
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">Agent 配置</h3>
+
+                        <div class="form-group">
+                            <label class="form-label">默认模型</label>
+                            <input type="text" class="form-input" id="settingModel" readonly>
+                            <div class="form-description">在配置文件中修改模型设置</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Temperature</label>
+                            <input type="number" class="form-input" id="settingTemperature" step="0.1" min="0" max="2" readonly>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">最大 Token 数</label>
+                            <input type="number" class="form-input" id="settingMaxTokens" readonly>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">上下文窗口</label>
+                            <input type="number" class="form-input" id="settingContextWindow" readonly>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">系统信息</h3>
+
+                        <div class="form-group">
+                            <label class="form-label">工作目录</label>
+                            <input type="text" class="form-input" id="settingWorkspace" readonly>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">配置路径</label>
+                            <input type="text" class="form-input" id="settingConfigPath" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- New Cron Job Modal -->
+    <div class="modal-overlay" id="newJobModal">
+        <div class="modal">
+            <h3 class="modal-title">新建定时任务</h3>
+            <div class="form-group">
+                <label class="form-label">任务名称</label>
+                <input type="text" class="form-input" id="jobName" placeholder="例如：每日提醒">
+            </div>
+            <div class="form-group">
+                <label class="form-label">任务内容</label>
+                <textarea class="form-input" id="jobMessage" rows="3" placeholder="要执行的任务描述..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Cron 表达式</label>
+                <input type="text" class="form-input" id="jobCron" placeholder="例如：0 9 * * * (每天 9 点)">
+                <div class="form-description">或者设置间隔秒数</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">间隔秒数</label>
+                <input type="number" class="form-input" id="jobInterval" placeholder="例如：3600 (每小时)">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideNewJobModal()">取消</button>
+                <button class="btn btn-primary" onclick="createCronJob()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // Global State
+        // ============================================================
+        const API_BASE = '';
+        const state = {
+            currentPage: 'dashboard',
+            sessionKey: 'web:default',
+            isLoading: false,
+            chatSessions: []
+        };
+
+        // ============================================================
+        // Navigation
+        // ============================================================
+        function navigateTo(page) {
+            // Update nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.page === page) {
+                    item.classList.add('active');
+                }
+            });
+
+            // Update pages
+            document.querySelectorAll('.page').forEach(p => {
+                p.classList.remove('active');
+            });
+            document.getElementById(page + 'Page').classList.add('active');
+
+            // Update title
+            const titles = {
+                dashboard: 'Dashboard',
+                chat: '对话',
+                channels: '渠道管理',
+                sessions: '会话管理',
+                cron: '定时任务',
+                settings: '系统设置'
+            };
+            document.getElementById('pageTitle').textContent = titles[page];
+
+            state.currentPage = page;
+
+            // Close mobile sidebar
+            document.getElementById('sidebar').classList.remove('open');
+
+            // Load page data
+            loadPageData(page);
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+
+        function loadPageData(page) {
+            switch(page) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'channels':
+                    loadChannels();
+                    break;
+                case 'sessions':
+                    loadSessions();
+                    break;
+                case 'cron':
+                    loadCronJobs();
+                    break;
+                case 'settings':
+                    loadSettings();
+                    break;
+                case 'chat':
+                    loadChatSessions();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // ============================================================
+        // Dashboard
+        // ============================================================
+        async function loadDashboard() {
+            try {
+                const response = await fetch(API_BASE + '/api/status');
+                const data = await response.json();
+
+                document.getElementById('systemVersion').textContent = 'v' + data.version;
+                document.getElementById('currentModel').textContent = data.model || '-';
+                document.getElementById('cronJobs').textContent = data.cron?.jobs || 0;
+
+                const hb = data.heartbeat;
+                if (hb && hb.enabled) {
+                    document.getElementById('heartbeatStatus').textContent = hb.interval_s + 's';
+                } else {
+                    document.getElementById('heartbeatStatus').textContent = '已禁用';
+                }
+
+                // Provider list
+                const providerList = document.getElementById('providerList');
+                const providers = data.providers || {};
+                const providerNames = Object.keys(providers);
+
+                if (providerNames.length === 0) {
+                    providerList.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">暂无配置</div>';
+                } else {
+                    providerList.innerHTML = providerNames.map(name => {
+                        const p = providers[name];
+                        const statusClass = p.configured ? 'active' : 'inactive';
+                        const statusText = p.configured ? '已配置' : '未配置';
+                        return `
+                            <div class="status-item">
+                                <div class="status-item-name">
+                                    <span class="status-dot ${statusClass}"></span>
+                                    <span>${name}</span>
+                                </div>
+                                <span style="font-size: 13px; color: var(--text-muted);">${statusText}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Channel list
+                const channelList = document.getElementById('channelList');
+                // Will be populated by loadChannels
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
+        }
+
+        // ============================================================
+        // Channels
+        // ============================================================
+        async function loadChannels() {
+            try {
+                const response = await fetch(API_BASE + '/api/channels');
+                const data = await response.json();
+
+                const grid = document.getElementById('channelsGrid');
+                const channels = data.channels || [];
+
+                // Update dashboard channel list
+                const dashboardList = document.getElementById('channelList');
+                if (channels.length === 0) {
+                    dashboardList.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">暂无渠道</div>';
+                } else {
+                    dashboardList.innerHTML = channels.map(ch => `
+                        <div class="status-item">
+                            <div class="status-item-name">
+                                <span class="status-dot ${ch.enabled ? 'active' : 'inactive'}"></span>
+                                <span>${ch.display_name || ch.name}</span>
+                            </div>
+                            <span style="font-size: 13px; color: var(--text-muted);">${ch.enabled ? '已启用' : '已禁用'}</span>
+                        </div>
+                    `).join('');
+                }
+
+                // Channels page grid
+                if (channels.length === 0) {
+                    grid.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px;">暂无渠道</div>';
+                } else {
+                    grid.innerHTML = channels.map(ch => `
+                        <div class="channel-card">
+                            <div class="channel-card-header">
+                                <span class="channel-name">${ch.display_name || ch.name}</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" ${ch.enabled ? 'checked' : ''} onchange="toggleChannel('${ch.name}', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div style="font-size: 13px; color: var(--text-muted);">
+                                ${ch.config && Object.keys(ch.config).length > 0 ? JSON.stringify(ch.config) : '无额外配置'}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load channels:', error);
+            }
+        }
+
+        async function toggleChannel(name, enabled) {
+            try {
+                await fetch(API_BASE + '/api/channels/' + name, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+            } catch (error) {
+                console.error('Failed to toggle channel:', error);
+                alert('切换失败：' + error.message);
+            }
+        }
+
+        // ============================================================
+        // Sessions
+        // ============================================================
+        async function loadSessions() {
+            try {
+                const response = await fetch(API_BASE + '/api/sessions');
+                const data = await response.json();
+
+                const list = document.getElementById('sessionsList');
+                const sessions = data.sessions || [];
+
+                if (sessions.length === 0) {
+                    list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px;">暂无会话</div>';
+                } else {
+                    list.innerHTML = sessions.map(s => `
+                        <div class="session-item" onclick="viewSession('${s.key}')">
+                            <div class="session-info">
+                                <div class="session-key">${s.key}</div>
+                                <div class="session-meta">消息数：${s.message_count || 0}</div>
+                            </div>
+                            <div class="session-actions">
+                                <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSession('${s.key}')">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load sessions:', error);
+            }
+        }
+
+        async function deleteSession(key) {
+            if (!confirm('确定要删除会话 "' + key + '" 吗？')) return;
+
+            try {
+                await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key), {
+                    method: 'DELETE'
+                });
+                loadSessions();
+            } catch (error) {
+                console.error('Failed to delete session:', error);
+                alert('删除失败：' + error.message);
+            }
+        }
+
+        function viewSession(key) {
+            state.sessionKey = key;
+            navigateTo('chat');
+        }
+
+        // ============================================================
+        // Cron Jobs
+        // ============================================================
+        async function loadCronJobs() {
+            try {
+                const response = await fetch(API_BASE + '/api/cron/jobs');
+                const data = await response.json();
+
+                const list = document.getElementById('cronJobsList');
+                const jobs = data.jobs || [];
+
+                if (jobs.length === 0) {
+                    list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px;">暂无定时任务</div>';
+                } else {
+                    list.innerHTML = jobs.map(job => `
+                        <div class="session-item">
+                            <div class="session-info">
+                                <div class="session-key">${job.name || 'Unnamed'}</div>
+                                <div class="session-meta">
+                                    ${job.schedule_kind === 'cron' && job.cron_expr ? 'Cron: ' + job.cron_expr : ''}
+                                    ${job.schedule_kind === 'every' && job.interval_s ? '每 ' + job.interval_s + ' 秒' : ''}
+                                    ${!job.schedule_kind ? '未定义' : ''}
+                                </div>
+                                <div class="session-meta" style="margin-top: 4px;">${job.message || '无消息'}</div>
+                            </div>
+                            <div class="session-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="runCronJob('${job.id}')">运行</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteCronJob('${job.id}')">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load cron jobs:', error);
+            }
+        }
+
+        function showNewJobModal() {
+            document.getElementById('newJobModal').classList.add('active');
+        }
+
+        function hideNewJobModal() {
+            document.getElementById('newJobModal').classList.remove('active');
+            // Clear inputs
+            document.getElementById('jobName').value = '';
+            document.getElementById('jobMessage').value = '';
+            document.getElementById('jobCron').value = '';
+            document.getElementById('jobInterval').value = '';
+        }
+
+        async function createCronJob() {
+            const name = document.getElementById('jobName').value;
+            const message = document.getElementById('jobMessage').value;
+            const cronExpr = document.getElementById('jobCron').value;
+            const interval = document.getElementById('jobInterval').value;
+
+            const body = { name, message, to: state.sessionKey.split(':')[1] || 'default' };
+            if (cronExpr) body.cron_expr = cronExpr;
+            if (interval) body.interval_s = parseInt(interval);
+
+            try {
+                await fetch(API_BASE + '/api/cron/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                hideNewJobModal();
+                loadCronJobs();
+            } catch (error) {
+                console.error('Failed to create cron job:', error);
+                alert('创建失败：' + error.message);
+            }
+        }
+
+        async function deleteCronJob(jobId) {
+            if (!confirm('确定要删除此定时任务吗？')) return;
+
+            try {
+                await fetch(API_BASE + '/api/cron/jobs/' + jobId, {
+                    method: 'DELETE'
+                });
+                loadCronJobs();
+            } catch (error) {
+                console.error('Failed to delete cron job:', error);
+            }
+        }
+
+        async function runCronJob(jobId) {
+            try {
+                await fetch(API_BASE + '/api/cron/jobs/' + jobId + '/run', {
+                    method: 'POST'
+                });
+                alert('任务已触发');
+            } catch (error) {
+                console.error('Failed to run cron job:', error);
+            }
+        }
+
+        // ============================================================
+        // Settings
+        // ============================================================
+        async function loadSettings() {
+            try {
+                const response = await fetch(API_BASE + '/api/config');
+                const data = await response.json();
+
+                document.getElementById('settingModel').value = data.agents?.defaults?.model || '-';
+                document.getElementById('settingTemperature').value = data.agents?.defaults?.temperature || 0.7;
+                document.getElementById('settingMaxTokens').value = data.agents?.defaults?.max_tokens || 4096;
+                document.getElementById('settingContextWindow').value = data.agents?.defaults?.context_window_tokens || 8192;
+                document.getElementById('settingWorkspace').value = data.agents?.defaults?.workspace || '-';
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        }
+
+        // ============================================================
+        // Chat
+        // ============================================================
+
+        // Load chat sessions from API
+        async function loadChatSessions() {
+            try {
+                const response = await fetch(API_BASE + '/api/sessions');
+                const data = await response.json();
+                state.chatSessions = data.sessions || [];
+
+                const listDiv = document.getElementById('chatSessionList');
+                if (state.chatSessions.length === 0) {
+                    listDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; font-size: 13px;">暂无会话<br>点击右上角 + 创建</div>';
+                } else {
+                    listDiv.innerHTML = state.chatSessions.map(s => {
+                        const isActive = s.key === state.sessionKey;
+                        const title = s.key.split(':')[1] || s.key;
+                        return `
+                            <div style="padding: 12px; margin-bottom: 8px; background: ${isActive ? 'var(--primary-light)' : 'var(--bg-input)'}; border-radius: 8px; cursor: pointer; border-left: 3px solid ${isActive ? 'var(--primary)' : 'transparent'};"
+                                 onclick="switchChatSession('${s.key}')"
+                                 onmouseover="this.style.background='var(--primary-light)'"
+                                 onmouseout="this.style.background='${isActive ? 'var(--primary-light)' : 'var(--bg-input)'}'">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; color: ${isActive ? 'var(--primary)' : 'var(--text-secondary)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${title}</span>
+                                    <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0 4px;"
+                                            onclick="event.stopPropagation(); deleteChatSession('${s.key}')"
+                                            title="删除会话">×</button>
+                                </div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                                    ${s.message_count || 0} 条消息
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load chat sessions:', error);
+            }
+        }
+
+        // Create new session
+        async function createNewSession() {
+            const id = Math.random().toString(36).substring(2, 8);
+            const key = `web:${id}`;
+
+            try {
+                await fetch(API_BASE + '/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key, title: id })
+                });
+                await loadChatSessions();
+                switchChatSession(key);
+            } catch (error) {
+                console.error('Failed to create session:', error);
+                alert('创建会话失败：' + error.message);
+            }
+        }
+
+        // Switch to a different session
+        function switchChatSession(key) {
+            state.sessionKey = key;
+            loadChatSessions(); // Refresh to update active highlight
+            loadChatMessages(key);
+        }
+
+        // Load chat messages for a session
+        async function loadChatMessages(key) {
+            try {
+                const response = await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key));
+                const data = await response.json();
+                const messages = data.messages || [];
+
+                const messagesDiv = document.getElementById('chatMessages');
+                messagesDiv.innerHTML = '';
+
+                if (messages.length === 0) {
+                    messagesDiv.innerHTML = `
+                        <div class="message message-assistant">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">
+                                <div class="message-header">
+                                    <span class="message-name">nanobot</span>
+                                    <span class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <div class="message-body">
+                                    新会话已开始。有什么我可以帮助你的吗？
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messages.forEach(msg => {
+                        const role = msg.role === 'user' ? 'user' : 'assistant';
+                        const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                        addChatMessage(role, msg.content, time);
+                    });
+                }
+
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) {
+                console.error('Failed to load chat messages:', error);
+            }
+        }
+
+        // Delete chat session
+        async function deleteChatSession(key) {
+            if (!confirm('确定要删除会话 "' + key + '" 吗？')) return;
+
+            try {
+                await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key), {
+                    method: 'DELETE'
+                });
+
+                // If deleting current session, switch to default
+                if (key === state.sessionKey) {
+                    state.sessionKey = 'web:default';
+                }
+
+                await loadChatSessions();
+                if (state.sessionKey !== key) {
+                    loadChatMessages(state.sessionKey);
+                }
+            } catch (error) {
+                console.error('Failed to delete session:', error);
+                alert('删除失败：' + error.message);
+            }
+        }
+
+        function handleChatKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message || state.isLoading) return;
+
+            // Add user message
+            addChatMessage('user', message);
+
+            input.value = '';
+            autoResizeTextarea(input);
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            state.isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            try {
+                const response = await fetch(API_BASE + '/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        session_key: state.sessionKey
+                    })
+                });
+
+                // Remove typing indicator
+                removeTypingIndicator();
+
+                // Read SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let assistantMessageDiv = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'progress') {
+                                // Show progress
+                                showProgress(data.content);
+                            } else if (data.type === 'response') {
+                                // Add or update assistant message
+                                if (!assistantMessageDiv) {
+                                    assistantMessageDiv = addChatMessage('assistant', data.content);
+                                } else {
+                                    assistantMessageDiv.querySelector('.message-body').textContent = data.content;
+                                }
+                            } else if (data.type === 'error') {
+                                addChatMessage('assistant', '错误：' + data.content);
+                            }
+                        }
+                    }
+                }
+
+                // Refresh session list to update message count
+                loadChatSessions();
+
+            } catch (error) {
+                removeTypingIndicator();
+                addChatMessage('assistant', '错误：' + error.message);
+            } finally {
+                state.isLoading = false;
+                document.getElementById('sendBtn').disabled = false;
+            }
+        }
+
+        function addChatMessage(role, content, customTime = null) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const time = customTime || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-' + role;
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${role === 'user' ? '👤' : '🤖'}</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-name">${role === 'user' ? '你' : 'nanobot'}</span>
+                        <span class="message-time">${time}</span>
+                    </div>
+                    <div class="message-body">${formatMessage(content)}</div>
+                </div>
+            `;
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            return messageDiv;
+        }
+
+        function formatMessage(content) {
+            // Simple markdown-like formatting
+            return content
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\\n/g, '<br>');
+        }
+
+        function showTypingIndicator() {
+            const messagesDiv = document.getElementById('chatMessages');
+            const indicator = document.createElement('div');
+            indicator.id = 'typingIndicator';
+            indicator.className = 'message message-assistant';
+            indicator.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            messagesDiv.appendChild(indicator);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function showProgress(content) {
+            // Optional: Show progress steps
+            console.log('Progress:', content);
+        }
+
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        }
+
+        // ============================================================
+        // Cron Jobs - Chat Integration
+        // ============================================================
+
+        // Quick create cron job from chat
+        async function quickCreateCron(name, cronExpr, intervalS = null) {
+            const message = `创建一个定时任务：${name}`;
+            addChatMessage('user', message);
+
+            const body = {
+                name: name,
+                message: `执行任务：${name}`,
+                to: state.sessionKey.split(':')[1] || 'default'
+            };
+
+            if (cronExpr) body.cron_expr = cronExpr;
+            if (intervalS) body.interval_s = intervalS;
+
+            try {
+                const response = await fetch(API_BASE + '/api/cron/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'ok') {
+                    addChatMessage('assistant', `✅ 已创建定时任务"${name}"\n\n${cronExpr ? 'Cron 表达式：' + cronExpr : '间隔：' + intervalS + '秒'}`);
+                } else {
+                    addChatMessage('assistant', '❌ 创建失败：' + (result.message || '未知错误'));
+                }
+            } catch (error) {
+                addChatMessage('assistant', '❌ 创建失败：' + error.message);
+            }
+
+            // Scroll to bottom
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Show user's cron jobs in chat
+        async function showMyCronJobs() {
+            addChatMessage('user', '查看我的定时任务');
+
+            try {
+                const response = await fetch(API_BASE + '/api/cron/jobs');
+                const data = await response.json();
+                const jobs = data.jobs || [];
+
+                if (jobs.length === 0) {
+                    addChatMessage('assistant', '📋 你还没有定时任务\\n\\n点击"快捷操作"中的按钮或告诉我"创建一个每天早上 9 点的提醒"来添加定时任务。');
+                } else {
+                    let content = '📋 **你的定时任务**\\n\\n';
+                    jobs.forEach((job, index) => {
+                        const schedule = job.schedule_kind === 'cron' && job.cron_expr
+                            ? `Cron: ${job.cron_expr}`
+                            : `每 ${job.interval_s || '?'} 秒`;
+                        const status = job.enabled ? '✅' : '❌';
+                        content += `${index + 1}. ${status} ${job.name || 'Unnamed'}\\n   ${schedule}\\n\\n`;
+                    });
+                    addChatMessage('assistant', content);
+                }
+            } catch (error) {
+                addChatMessage('assistant', '❌ 获取失败：' + error.message);
+            }
+
+            // Scroll to bottom
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // ============================================================
+        // Initialize
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set welcome time
+            document.getElementById('chatWelcomeTime').textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+            // Load dashboard
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>

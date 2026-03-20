@@ -38,6 +38,11 @@ class ChannelManager:
 
         for name, cls in discover_all().items():
             section = getattr(self.config.channels, name, None)
+
+            # Web channel: auto-enable with default config if not explicitly configured
+            if name == "web" and section is None:
+                section = {"enabled": True}
+
             if section is None:
                 continue
             enabled = (
