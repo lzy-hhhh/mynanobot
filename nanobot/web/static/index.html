@@ -1229,15 +1229,6 @@
 
                         <!-- Chat Area -->
                         <div style="flex: 1; display: flex; flex-direction: column;">
-                            <!-- Quick Actions Bar -->
-                            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-card); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <span style="font-size: 13px; color: var(--text-muted);">快捷操作：</span>
-                                <button class="btn btn-secondary btn-sm" onclick="quickCreateCron('每天早上 9 点', '0 9 * * *')">⏰ 每日提醒</button>
-                                <button class="btn btn-secondary btn-sm" onclick="quickCreateCron('每周一上午 10 点', '0 10 * * 1')">📅 周报</button>
-                                <button class="btn btn-secondary btn-sm" onclick="quickCreateCron('每小时', '', 3600)">⏱️ 每小时</button>
-                                <button class="btn btn-secondary btn-sm" onclick="showMyCronJobs()">📋 我的任务</button>
-                            </div>
-
                             <div class="chat-messages" id="chatMessages" style="flex: 1; overflow-y: auto;">
                                 <div class="message message-assistant">
                                     <div class="message-avatar">🤖</div>
@@ -1439,25 +1430,130 @@
 
     <!-- New Cron Job Modal -->
     <div class="modal-overlay" id="newJobModal">
-        <div class="modal">
+        <div class="modal" style="max-width: 500px;">
             <h3 class="modal-title">新建定时任务</h3>
+
             <div class="form-group">
                 <label class="form-label">任务名称</label>
                 <input type="text" class="form-input" id="jobName" placeholder="例如：每日提醒">
             </div>
+
             <div class="form-group">
                 <label class="form-label">任务内容</label>
                 <textarea class="form-input" id="jobMessage" rows="3" placeholder="要执行的任务描述..."></textarea>
             </div>
+
             <div class="form-group">
+                <label class="form-label">发送渠道</label>
+                <select class="form-input" id="jobChannel" onchange="toggleChannelOptions()">
+                    <option value="web">Web UI（站内消息）</option>
+                    <option value="email">Email（邮件通知）</option>
+                </select>
+            </div>
+
+            <!-- Email 选项 -->
+            <div class="form-group schedule-option" id="emailOptions" style="display: none;">
+                <label class="form-label">收件人邮箱</label>
+                <input type="email" class="form-input" id="emailTo" placeholder="example@qq.com">
+                <div class="form-description">邮件将发送到此地址</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">定时类型</label>
+                <select class="form-input" id="jobScheduleType" onchange="toggleScheduleOptions()">
+                    <option value="daily">每天</option>
+                    <option value="weekly">每周</option>
+                    <option value="monthly">每月</option>
+                    <option value="interval">间隔重复</option>
+                    <option value="custom">自定义 Cron</option>
+                </select>
+            </div>
+
+            <!-- 每天选项 -->
+            <div class="form-group schedule-option" id="scheduleDaily">
+                <label class="form-label">执行时间</label>
+                <input type="time" class="form-input" id="dailyTime" value="09:00">
+                <div class="form-description">每天早上 9 点执行</div>
+            </div>
+
+            <!-- 每周选项 -->
+            <div class="form-group schedule-option" id="scheduleWeekly" style="display: none;">
+                <label class="form-label">星期几</label>
+                <select class="form-input" id="weeklyDay">
+                    <option value="1">星期一</option>
+                    <option value="2">星期二</option>
+                    <option value="3">星期三</option>
+                    <option value="4">星期四</option>
+                    <option value="5">星期五</option>
+                    <option value="6">星期六</option>
+                    <option value="0">星期日</option>
+                </select>
+                <label class="form-label" style="margin-top: 8px;">执行时间</label>
+                <input type="time" class="form-input" id="weeklyTime" value="10:00">
+            </div>
+
+            <!-- 每月选项 -->
+            <div class="form-group schedule-option" id="scheduleMonthly" style="display: none;">
+                <label class="form-label">日期</label>
+                <select class="form-input" id="monthlyDay">
+                    <option value="1">1 日</option>
+                    <option value="2">2 日</option>
+                    <option value="3">3 日</option>
+                    <option value="4">4 日</option>
+                    <option value="5">5 日</option>
+                    <option value="6">6 日</option>
+                    <option value="7">7 日</option>
+                    <option value="8">8 日</option>
+                    <option value="9">9 日</option>
+                    <option value="10">10 日</option>
+                    <option value="11">11 日</option>
+                    <option value="12">12 日</option>
+                    <option value="13">13 日</option>
+                    <option value="14">14 日</option>
+                    <option value="15">15 日</option>
+                    <option value="16">16 日</option>
+                    <option value="17">17 日</option>
+                    <option value="18">18 日</option>
+                    <option value="19">19 日</option>
+                    <option value="20">20 日</option>
+                    <option value="21">21 日</option>
+                    <option value="22">22 日</option>
+                    <option value="23">23 日</option>
+                    <option value="24">24 日</option>
+                    <option value="25">25 日</option>
+                    <option value="26">26 日</option>
+                    <option value="27">27 日</option>
+                    <option value="28">28 日</option>
+                    <option value="29">29 日</option>
+                    <option value="30">30 日</option>
+                    <option value="31">31 日</option>
+                </select>
+                <label class="form-label" style="margin-top: 8px;">执行时间</label>
+                <input type="time" class="form-input" id="monthlyTime" value="09:00">
+            </div>
+
+            <!-- 间隔重复选项 -->
+            <div class="form-group schedule-option" id="scheduleInterval" style="display: none;">
+                <label class="form-label">间隔时间</label>
+                <select class="form-input" id="intervalValue">
+                    <option value="60">每分钟</option>
+                    <option value="300">每 5 分钟</option>
+                    <option value="900">每 15 分钟</option>
+                    <option value="1800">每 30 分钟</option>
+                    <option value="3600" selected>每小时</option>
+                    <option value="21600">每 6 小时</option>
+                    <option value="43200">每 12 小时</option>
+                    <option value="86400">每天</option>
+                </select>
+            </div>
+
+            <!-- 自定义 Cron 选项 -->
+            <div class="form-group schedule-option" id="scheduleCustom" style="display: none;">
                 <label class="form-label">Cron 表达式</label>
-                <input type="text" class="form-input" id="jobCron" placeholder="例如：0 9 * * * (每天 9 点)">
-                <div class="form-description">或者设置间隔秒数</div>
+                <input type="text" class="form-input" id="customCron" placeholder="例如：0 9 * * *">
+                <div class="form-description">格式：分 时 日 月 周</div>
             </div>
-            <div class="form-group">
-                <label class="form-label">间隔秒数</label>
-                <input type="number" class="form-input" id="jobInterval" placeholder="例如：3600 (每小时)">
-            </div>
+
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="hideNewJobModal()">取消</button>
                 <button class="btn btn-primary" onclick="createCronJob()">创建</button>
@@ -1925,7 +2021,14 @@
                                 .filter(([k]) => k !== 'enabled')
                                 .slice(0, 3)
                                 .map(([k, v]) => {
-                                    const displayValue = typeof v === 'string' && v ? (v.length > 15 ? v.substring(0, 15) + '...' : v) : (typeof v === 'boolean' ? (v ? '是' : '否') : v);
+                                    // 隐藏敏感信息
+                                    const sensitiveKeys = ['token', 'secret', 'key', 'password', 'encryptKey', 'appSecret', 'clientSecret', 'botToken', 'appToken'];
+                                    let displayValue = v;
+                                    if (typeof v === 'string' && v && sensitiveKeys.some(sk => k.toLowerCase().includes(sk.toLowerCase()))) {
+                                        displayValue = v.length > 4 ? v.substring(0, 4) + '...' : '***';
+                                    } else if (typeof v === 'boolean') {
+                                        displayValue = v ? '是' : '否';
+                                    }
                                     return `<div class="channel-config-item"><span>${k}</span><span style="color: var(--text-secondary);">${displayValue || '-'}</span></div>`;
                                 }).join('')
                             : '<div style="text-align: center; padding: 8px; color: var(--text-muted);">无额外配置</div>';
@@ -2452,6 +2555,22 @@
         // ============================================================
         // Cron Jobs
         // ============================================================
+        function toggleChannelOptions() {
+            const channel = document.getElementById('jobChannel').value;
+            const emailOptions = document.getElementById('emailOptions');
+            emailOptions.style.display = (channel === 'email') ? 'block' : 'none';
+        }
+
+        function toggleScheduleOptions() {
+            const type = document.getElementById('jobScheduleType').value;
+            document.querySelectorAll('.schedule-option').forEach(el => el.style.display = 'none');
+            if (type === 'daily') document.getElementById('scheduleDaily').style.display = 'block';
+            else if (type === 'weekly') document.getElementById('scheduleWeekly').style.display = 'block';
+            else if (type === 'monthly') document.getElementById('scheduleMonthly').style.display = 'block';
+            else if (type === 'interval') document.getElementById('scheduleInterval').style.display = 'block';
+            else if (type === 'custom') document.getElementById('scheduleCustom').style.display = 'block';
+        }
+
         async function loadCronJobs() {
             try {
                 const response = await fetch(API_BASE + '/api/cron/jobs');
@@ -2486,6 +2605,7 @@
         }
 
         function showNewJobModal() {
+            toggleScheduleOptions();
             document.getElementById('newJobModal').classList.add('active');
         }
 
@@ -2493,28 +2613,76 @@
             document.getElementById('newJobModal').classList.remove('active');
             document.getElementById('jobName').value = '';
             document.getElementById('jobMessage').value = '';
-            document.getElementById('jobCron').value = '';
-            document.getElementById('jobInterval').value = '';
+            document.getElementById('jobChannel').value = 'web';
+            document.getElementById('emailTo').value = '';
+            document.getElementById('jobScheduleType').value = 'daily';
+            document.getElementById('dailyTime').value = '09:00';
+            document.getElementById('weeklyDay').value = '1';
+            document.getElementById('weeklyTime').value = '10:00';
+            document.getElementById('monthlyDay').value = '1';
+            document.getElementById('monthlyTime').value = '09:00';
+            document.getElementById('intervalValue').value = '3600';
+            document.getElementById('customCron').value = '';
+            toggleChannelOptions();
+            toggleScheduleOptions();
         }
 
         async function createCronJob() {
             const name = document.getElementById('jobName').value;
             const message = document.getElementById('jobMessage').value;
-            const cronExpr = document.getElementById('jobCron').value;
-            const interval = document.getElementById('jobInterval').value;
+            const channel = document.getElementById('jobChannel').value;
+            const emailTo = document.getElementById('emailTo').value.trim();
+            const scheduleType = document.getElementById('jobScheduleType').value;
 
-            const body = { name, message, to: state.sessionKey.split(':')[1] || 'default' };
+            let cronExpr = null;
+            let intervalS = null;
+
+            if (scheduleType === 'daily') {
+                const time = document.getElementById('dailyTime').value;
+                const [hour, minute] = time.split(':');
+                cronExpr = `${minute} ${hour} * * *`;
+            } else if (scheduleType === 'weekly') {
+                const day = document.getElementById('weeklyDay').value;
+                const time = document.getElementById('weeklyTime').value;
+                const [hour, minute] = time.split(':');
+                cronExpr = `${minute} ${hour} * * ${day}`;
+            } else if (scheduleType === 'monthly') {
+                const day = document.getElementById('monthlyDay').value;
+                const time = document.getElementById('monthlyTime').value;
+                const [hour, minute] = time.split(':');
+                cronExpr = `${minute} ${hour} ${day} * *`;
+            } else if (scheduleType === 'interval') {
+                intervalS = parseInt(document.getElementById('intervalValue').value);
+            } else if (scheduleType === 'custom') {
+                cronExpr = document.getElementById('customCron').value;
+            }
+
+            // Determine target chat_id based on channel
+            let to = 'default';
+            if (channel === 'email' && emailTo) {
+                to = emailTo;
+            } else {
+                to = state.sessionKey.split(':')[1] || 'default';
+            }
+
+            const body = { name, message, channel, to };
             if (cronExpr) body.cron_expr = cronExpr;
-            if (interval) body.interval_s = parseInt(interval);
+            if (intervalS) body.interval_s = intervalS;
 
             try {
-                await fetch(API_BASE + '/api/cron/jobs', {
+                const response = await fetch(API_BASE + '/api/cron/jobs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-                hideNewJobModal();
-                loadCronJobs();
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    hideNewJobModal();
+                    loadCronJobs();
+                    alert('定时任务已创建！');
+                } else {
+                    alert('创建失败：' + (result.message || '未知错误'));
+                }
             } catch (error) {
                 console.error('Failed to create cron job:', error);
                 alert('创建失败：' + error.message);
@@ -2862,41 +3030,6 @@
         // ============================================================
         // Cron Jobs - Chat Integration
         // ============================================================
-        async function quickCreateCron(name, cronExpr, intervalS = null) {
-            const message = `创建一个定时任务：${name}`;
-            addChatMessage('user', message);
-
-            const body = {
-                name: name,
-                message: `执行任务：${name}`,
-                to: state.sessionKey.split(':')[1] || 'default'
-            };
-
-            if (cronExpr) body.cron_expr = cronExpr;
-            if (intervalS) body.interval_s = intervalS;
-
-            try {
-                const response = await fetch(API_BASE + '/api/cron/jobs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-
-                const result = await response.json();
-
-                if (result.status === 'ok') {
-                    addChatMessage('assistant', `✅ 已创建定时任务"${name}"\n\n${cronExpr ? 'Cron 表达式：' + cronExpr : '间隔：' + intervalS + '秒'}`);
-                } else {
-                    addChatMessage('assistant', '❌ 创建失败：' + (result.message || '未知错误'));
-                }
-            } catch (error) {
-                addChatMessage('assistant', '❌ 创建失败：' + error.message);
-            }
-
-            const messagesDiv = document.getElementById('chatMessages');
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
         async function showMyCronJobs() {
             addChatMessage('user', '查看我的定时任务');
 
@@ -2906,7 +3039,7 @@
                 const jobs = data.jobs || [];
 
                 if (jobs.length === 0) {
-                    addChatMessage('assistant', '📋 你还没有定时任务\n\n点击"快捷操作"中的按钮或告诉我"创建一个每天早上 9 点的提醒"来添加定时任务。');
+                    addChatMessage('assistant', '📋 你还没有定时任务\n\n点击左侧菜单"定时任务"或告诉我"创建一个每天早上 9 点的提醒"来添加定时任务。');
                 } else {
                     let content = '📋 **你的定时任务**\n\n';
                     jobs.forEach((job, index) => {
@@ -3028,6 +3161,8 @@
             loadDashboard();
             // Connect to WebSocket for real-time events
             connectWebSocket();
+            // Initialize schedule options for cron job modal
+            toggleScheduleOptions();
         });
     </script>
 </body>

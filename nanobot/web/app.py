@@ -152,24 +152,33 @@ def create_app() -> FastAPI:
         # Create channel manager to handle outbound messages
         state.channel_manager = ChannelManager(config, state.bus)
 
-        # Set cron on_job callback - handle cron job execution
+        # Set cron on_job callback - handle cron job execution through the agent
         async def on_cron_job(job):
-            """Handle cron job execution - send message to specified channel."""
+            """Handle cron job execution - let the agent process the task."""
             if job.payload and job.payload.message:
-                # Build reminder message - send directly via outbound message
-                # Don't use process_direct to avoid double-saving and duplicate messages
-                reminder_content = f"💊 **提醒：{job.payload.message}**\n\n您好！您的定时提醒已触发。\n\n请记得按时完成，如果需要我帮您设置更多提醒或有其他需要，随时告诉我。"
+                # Same as CLI: pass the instruction directly to agent
+                reminder_note = (
+                    "[Scheduled Task] Timer finished.\n\n"
+                    f"Task '{job.name}' has been triggered.\n"
+                    f"Scheduled instruction: {job.payload.message}"
+                )
 
-                # Send response to the target channel via outbound message
-                from nanobot.bus.events import OutboundMessage
+                # Use same channel and chat_id as job payload (same as CLI)
+                target_channel = job.payload.channel or "web"
                 target_chat_id = job.payload.to or "default"
-                await state.bus.publish_outbound(OutboundMessage(
-                    channel=job.payload.channel or "web",
+
+                session_key = f"cron:{job.id}"
+
+                response = await state.agent.process_direct(
+                    content=reminder_note,
+                    session_key=session_key,
+                    channel=target_channel,
                     chat_id=target_chat_id,
-                    content=reminder_content,
-                ))
-                logger.info("Cron job '{}' executed and sent to channel '{}' chat '{}'",
-                           job.name, job.payload.channel, target_chat_id)
+                )
+
+                logger.info("Cron job '{}' executed through agent for channel '{}'",
+                           job.name, target_channel)
+                return response
             return None
 
         state.cron.on_job = on_cron_job
@@ -468,23 +477,12 @@ def register_routes(app: FastAPI, state: AppState):
             else:
                 enabled = getattr(section, "enabled", False)
 
-            # 提取主要配置字段（隐藏敏感信息）
-            config_summary = {}
-            if isinstance(raw_config, dict):
-                for key, value in raw_config.items():
-                    if key in ["enabled", "appId", "clientId", "botId", "token", "allowFrom", "groupPolicy"]:
-                        # 隐藏敏感信息的部分内容
-                        if key in ["token", "clientSecret", "appSecret", "apiKey"] and value:
-                            config_summary[key] = value[:4] + "..." if len(str(value)) > 4 else "***"
-                        else:
-                            config_summary[key] = value
-
             result.append({
                 "name": name,
                 "display_name": cls.display_name,
                 "enabled": enabled,
-                "configured": bool(config_summary and any(v for v in config_summary.values() if v not in [None, "", []])),
-                "config_summary": config_summary
+                "configured": bool(raw_config and any(v for v in raw_config.values() if v not in [None, "", []])),
+                "config": raw_config  # 返回完整配置用于编辑
             })
 
         return {"channels": result}
@@ -913,7 +911,8 @@ def register_routes(app: FastAPI, state: AppState):
         message = body.get("message", "")
         cron_expr = body.get("cron_expr")
         interval_s = body.get("interval_s")
-        to = body.get("to")  # 目标会话 chat_id
+        channel = body.get("channel", "web")  # 支持指定渠道：web, email, feishu 等
+        to = body.get("to")  # 目标会话 chat_id 或邮箱地址
 
         # Build schedule
         if cron_expr:
@@ -923,13 +922,20 @@ def register_routes(app: FastAPI, state: AppState):
         else:
             return {"status": "error", "message": "Either cron_expr or interval_s is required"}
 
+        # For email channel, extract email from message if to is not provided
+        if channel == "email" and not to:
+            import re
+            email_match = re.search(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', message)
+            if email_match:
+                to = email_match.group(1)
+
         job = state.cron.add_job(
             name=name,
             schedule=schedule,
             message=message,
             deliver=True,
-            channel="web",
-            to=to,  # 指定目标会话
+            channel=channel,  # 支持任意已配置的渠道
+            to=to,  # 指定目标会话或邮箱地址
         )
 
         return {"status": "ok", "job_id": job.id}
