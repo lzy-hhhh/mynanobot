@@ -557,6 +557,23 @@ def gateway(
     console.print(f"[green]✓[/green] Heartbeat: every {hb_cfg.interval_s}s")
 
     async def run():
+        # If --web flag is provided, also start the Web UI server
+        web_task = None
+        if web:
+            import uvicorn
+            from nanobot.web.app import create_app
+            from threading import Thread
+
+            console.print(f"[green]✓[/green] Web UI: http://localhost:{web_port}")
+
+            def run_web():
+                web_app = create_app()
+                uvicorn.run(web_app, host="0.0.0.0", port=web_port, log_level="warning")
+
+            # Start web server in a separate thread
+            web_thread = Thread(target=run_web, daemon=True)
+            web_thread.start()
+
         try:
             await cron.start()
             await heartbeat.start()

@@ -3,7 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:;">
     <title>nanobot - Web AI Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/json.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/typescript.min.js"></script>
+    <style>
+        /* 临时禁用浏览器扩展可能注入的样式 */
+        .gm-style, .goog-te-gadget { display: none !important; }
+    </style>
     <style>
         /* ============================================================
            CSS Variables & Reset
@@ -311,17 +324,186 @@
         .status-dot.warning { background: var(--warning); }
 
         /* ============================================================
-           Chat Page
+           Chat Page - Integrated Sessions
            ============================================================ */
         .chat-container {
             display: flex;
-            flex-direction: column;
             height: calc(100vh - 140px);
             background: var(--bg-card);
             border-radius: var(--radius);
             overflow: hidden;
         }
 
+        .chat-sidebar {
+            width: 280px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s, transform 0.3s;
+        }
+
+        .chat-sidebar.collapsed {
+            width: 0;
+            overflow: hidden;
+            transform: translateX(-280px);
+            position: absolute;
+            height: 100%;
+            z-index: 100;
+        }
+
+        .chat-sidebar.collapsed .chat-sidebar-header button:first-child {
+            transform: rotate(180deg);
+        }
+
+        .chat-sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-sidebar-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .chat-sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        /* Session Group Styles */
+        .session-group {
+            margin-bottom: 16px;
+        }
+
+        .session-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .session-group-header:hover {
+            background: var(--primary-light);
+        }
+
+        .session-group-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .session-group-count {
+            background: var(--border-color);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+
+        .session-group-icon {
+            font-size: 14px;
+        }
+
+        .session-group-arrow {
+            transition: transform 0.2s;
+        }
+
+        .session-group-header.collapsed .session-group-arrow {
+            transform: rotate(-90deg);
+        }
+
+        .session-group-items {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-left: 12px;
+        }
+
+        .session-group-header.collapsed + .session-group-items {
+            display: none;
+        }
+
+        .session-item {
+            padding: 10px 12px;
+            background: var(--bg-input);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .session-item:hover {
+            background: #2a2a4a;
+        }
+
+        .session-item.active {
+            background: var(--primary-light);
+            border-left-color: var(--primary);
+        }
+
+        .session-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .session-item-title {
+            font-size: 13px;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .session-item-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+            position: relative;
+        }
+
+        .session-item:hover .session-item-actions {
+            opacity: 1;
+        }
+
+        .session-item-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 4px;
+            z-index: 11;
+            position: relative;
+            pointer-events: auto;
+        }
+
+        .session-item-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .session-item-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Chat Messages */
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -419,6 +601,43 @@
             padding: 0;
         }
 
+        /* 思考过程折叠块样式 */
+        .thought-block {
+            margin: 12px 0;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--bg-sidebar);
+            overflow: hidden;
+        }
+
+        .thought-block summary {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: rgba(0, 0, 0, 0.2);
+            user-select: none;
+        }
+
+        .thought-block summary:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .thought-block summary::-webkit-details-marker {
+            margin-right: 8px;
+        }
+
+        .thought-content {
+            padding: 14px;
+            color: var(--text-secondary);
+            font-style: italic;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .thought-content p {
+            margin-bottom: 8px;
+        }
+
         .chat-input-container {
             border-top: 1px solid var(--border-color);
             padding: 20px;
@@ -507,7 +726,7 @@
            ============================================================ */
         .channels-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
         }
 
@@ -574,48 +793,66 @@
             transform: translateX(24px);
         }
 
-        /* ============================================================
-           Sessions Page
-           ============================================================ */
-        .sessions-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+        .channel-config-preview {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            max-height: 100px;
+            overflow-y: auto;
         }
 
-        .session-item {
+        .channel-config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* ============================================================
+           Provider Page
+           ============================================================ */
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .provider-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .provider-card-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 20px;
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: all 0.2s;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        .session-item:hover {
-            background: var(--bg-input);
-            transform: translateX(4px);
-        }
-
-        .session-info {
-            flex: 1;
-        }
-
-        .session-key {
+        .provider-name {
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 4px;
         }
 
-        .session-meta {
+        .provider-status {
             font-size: 12px;
-            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: var(--bg-input);
         }
 
-        .session-actions {
-            display: flex;
-            gap: 8px;
+        .provider-status.configured {
+            color: var(--success);
+            background: rgba(16, 163, 127, 0.1);
+        }
+
+        .provider-status.unconfigured {
+            color: var(--text-muted);
+            background: var(--bg-input);
         }
 
         /* ============================================================
@@ -717,6 +954,8 @@
             padding: 24px;
             width: 90%;
             max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
             transform: translateY(-20px);
             transition: transform 0.3s;
         }
@@ -772,7 +1011,8 @@
                 grid-template-columns: 1fr;
             }
 
-            .channels-grid {
+            .channels-grid,
+            .provider-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -813,33 +1053,6 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-
-        /* ============================================================
-           Progress Steps
-           ============================================================ */
-        .progress-steps {
-            padding: 12px 16px;
-            background: var(--bg-input);
-            border-radius: var(--radius-sm);
-            margin-top: 8px;
-        }
-
-        .progress-step {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--text-muted);
-            padding: 4px 0;
-        }
-
-        .progress-step.active {
-            color: var(--primary);
-        }
-
-        .progress-step.completed {
-            color: var(--success);
-        }
     </style>
 </head>
 <body>
@@ -861,14 +1074,6 @@
                     <a class="nav-item" data-page="chat" onclick="navigateTo('chat')">
                         <span class="nav-icon">💬</span>
                         <span>对话</span>
-                    </a>
-                    <a class="nav-item" data-page="channels" onclick="navigateTo('channels')">
-                        <span class="nav-icon">📡</span>
-                        <span>渠道管理</span>
-                    </a>
-                    <a class="nav-item" data-page="sessions" onclick="navigateTo('sessions')">
-                        <span class="nav-icon">📁</span>
-                        <span>会话管理</span>
                     </a>
                     <a class="nav-item" data-page="cron" onclick="navigateTo('cron')">
                         <span class="nav-icon">⏰</span>
@@ -906,6 +1111,10 @@
             <div class="page-container">
                 <!-- Dashboard Page -->
                 <div class="page active" id="dashboardPage">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="font-size: 18px;">系统监控 Dashboard</h2>
+                        <button class="btn btn-primary" onclick="loadDashboard()">🔄 刷新状态</button>
+                    </div>
                     <div class="dashboard-grid">
                         <div class="card">
                             <div class="card-header">
@@ -942,11 +1151,48 @@
                             <div class="card-value" id="heartbeatStatus">-</div>
                             <div class="card-subtitle">检测间隔</div>
                         </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">运行时间</span>
+                                <span class="card-icon">⏱️</span>
+                            </div>
+                            <div class="card-value" id="uptimeDisplay" style="font-size: 20px;">-</div>
+                            <div class="card-subtitle">系统持续运行时间</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">Agent</span>
+                                <span class="card-icon">🤖</span>
+                            </div>
+                            <div class="card-value" id="agentStatus" style="font-size: 20px;">-</div>
+                            <div class="card-subtitle">Agent 初始化状态</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">内存使用</span>
+                                <span class="card-icon">💾</span>
+                            </div>
+                            <div class="card-value" id="memoryUsage" style="font-size: 20px;">-</div>
+                            <div class="card-subtitle">进程内存占用</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">CPU 使用</span>
+                                <span class="card-icon">📊</span>
+                            </div>
+                            <div class="card-value" id="cpuUsage" style="font-size: 20px;">-</div>
+                            <div class="card-subtitle">进程 CPU 占用</div>
+                        </div>
                     </div>
 
                     <div class="card">
                         <div class="card-header">
                             <span class="card-title">Provider 状态</span>
+                            <button class="btn btn-secondary btn-sm" onclick="showProviderManager()">⚙️ 管理</button>
                         </div>
                         <div class="status-list" id="providerList">
                             <div style="color: var(--text-muted); text-align: center; padding: 20px;">加载中...</div>
@@ -956,6 +1202,7 @@
                     <div class="card" style="margin-top: 20px;">
                         <div class="card-header">
                             <span class="card-title">渠道状态</span>
+                            <button class="btn btn-secondary btn-sm" onclick="showChannelManager()">⚙️ 管理</button>
                         </div>
                         <div class="status-list" id="channelList">
                             <div style="color: var(--text-muted); text-align: center; padding: 20px;">加载中...</div>
@@ -963,16 +1210,19 @@
                     </div>
                 </div>
 
-                <!-- Chat Page -->
+                <!-- Chat Page - Integrated with Sessions -->
                 <div class="page" id="chatPage">
-                    <div class="chat-container" style="display: flex; height: 100%;">
+                    <div class="chat-container">
                         <!-- Session Sidebar -->
-                        <div style="width: 240px; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column;">
-                            <div style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 14px; font-weight: 600;">会话列表</span>
-                                <button class="btn btn-primary btn-sm" onclick="createNewSession()" title="新建会话">+</button>
+                        <div class="chat-sidebar" id="chatSidebar">
+                            <div class="chat-sidebar-header">
+                                <span class="chat-sidebar-title">会话列表</span>
+                                <div style="display: flex; gap: 4px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="toggleChatSidebar()" title="折叠/展开">◀</button>
+                                    <button class="btn btn-primary btn-sm" onclick="showNewSessionModal()" title="新建会话">+</button>
+                                </div>
                             </div>
-                            <div id="chatSessionList" style="flex: 1; overflow-y: auto; padding: 8px;">
+                            <div id="chatSessionList" class="chat-sidebar-content">
                                 <div style="color: var(--text-muted); text-align: center; padding: 20px; font-size: 13px;">加载中...</div>
                             </div>
                         </div>
@@ -1021,26 +1271,13 @@
                     </div>
                 </div>
 
-                <!-- Channels Page -->
-                <div class="page" id="channelsPage">
-                    <div class="channels-grid" id="channelsGrid">
-                        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
-                            <div class="spinner" style="margin: 0 auto 16px;"></div>
-                            加载中...
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sessions Page -->
+                <!-- Sessions Page (Removed - integrated into Chat) -->
                 <div class="page" id="sessionsPage">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="font-size: 18px;">会话列表</h2>
-                        <button class="btn btn-primary" onclick="loadSessions()">🔄 刷新</button>
+                        <h2 style="font-size: 18px;">会话已整合到对话页面</h2>
                     </div>
-                    <div class="sessions-list" id="sessionsList">
-                        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
-                            暂无会话
-                        </div>
+                    <div class="card">
+                        <p style="color: var(--text-secondary);">会话管理功能已整合到对话页面，请点击左侧菜单中的"对话"进行会话管理。</p>
                     </div>
                 </div>
 
@@ -1050,7 +1287,7 @@
                         <h2 style="font-size: 18px;">定时任务</h2>
                         <button class="btn btn-primary" onclick="showNewJobModal()">+ 新建任务</button>
                     </div>
-                    <div class="sessions-list" id="cronJobsList">
+                    <div class="sessions-list" id="cronJobsList" style="display: flex; flex-direction: column; gap: 12px;">
                         <div style="color: var(--text-muted); text-align: center; padding: 40px;">
                             暂无定时任务
                         </div>
@@ -1059,28 +1296,58 @@
 
                 <!-- Settings Page -->
                 <div class="page" id="settingsPage">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="font-size: 18px;">系统设置</h2>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="cancelEdit()">取消</button>
+                            <button class="btn btn-primary" onclick="toggleEditMode()" id="editBtn">✏️ 编辑</button>
+                            <button class="btn btn-primary" onclick="saveSettingsDirect()" id="saveBtn" style="display: none;">💾 保存</button>
+                        </div>
+                    </div>
                     <div class="settings-section">
                         <h3 class="settings-section-title">Agent 配置</h3>
 
                         <div class="form-group">
+                            <label class="form-label">Provider 选择</label>
+                            <select class="form-input" id="settingProvider" disabled style="background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color);">
+                                <option value="auto">🤖 自动选择（根据模型名）</option>
+                            </select>
+                            <div class="form-description">选择 LLM Provider，已配置的会显示 ✅ 标记，选择未配置的会提示</div>
+                        </div>
+
+                        <div class="form-group">
                             <label class="form-label">默认模型</label>
-                            <input type="text" class="form-input" id="settingModel" readonly>
-                            <div class="form-description">在配置文件中修改模型设置</div>
+                            <input type="text" class="form-input" id="settingModel" disabled>
+                            <div class="form-description">例如：claude-sonnet-4-20250514, qwen-plus, gpt-4o</div>
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">Temperature</label>
-                            <input type="number" class="form-input" id="settingTemperature" step="0.1" min="0" max="2" readonly>
+                            <input type="number" class="form-input" id="settingTemperature" step="0.1" min="0" max="2" disabled>
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">最大 Token 数</label>
-                            <input type="number" class="form-input" id="settingMaxTokens" readonly>
+                            <input type="number" class="form-input" id="settingMaxTokens" disabled>
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">上下文窗口</label>
-                            <input type="number" class="form-input" id="settingContextWindow" readonly>
+                            <input type="number" class="form-input" id="settingContextWindow" disabled>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">Gateway 配置</h3>
+
+                        <div class="form-group">
+                            <label class="form-label">端口</label>
+                            <input type="number" class="form-input" id="settingGatewayPort" disabled>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">心跳间隔 (秒)</label>
+                            <input type="number" class="form-input" id="settingHeartbeatInterval" disabled>
                         </div>
                     </div>
 
@@ -1101,6 +1368,74 @@
             </div>
         </main>
     </div>
+
+    <!-- New Session Modal -->
+    <div class="modal-overlay" id="newSessionModal">
+        <div class="modal">
+            <h3 class="modal-title">新建会话</h3>
+            <div class="form-group">
+                <label class="form-label">会话名称</label>
+                <input type="text" class="form-input" id="newSessionName" placeholder="例如：代码编写、日常聊天...">
+                <div class="form-description">给会话起个名字，方便后续识别</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideNewSessionModal()">取消</button>
+                <button class="btn btn-primary" onclick="createNewSessionWithName()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Session Modal -->
+    <div class="modal-overlay" id="renameSessionModal">
+        <div class="modal">
+            <h3 class="modal-title">重命名会话</h3>
+            <div class="form-group">
+                <label class="form-label">新名称</label>
+                <input type="text" class="form-input" id="renameSessionName" placeholder="输入新名称">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideRenameSessionModal()">取消</button>
+                <button class="btn btn-primary" onclick="renameSession()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Channel Config Modal -->
+    <div class="modal-overlay" id="channelConfigModal">
+        <div class="modal" style="max-width: 600px;">
+            <h3 class="modal-title">配置渠道 - <span id="channelConfigTitle"></span></h3>
+            <div id="channelConfigForm">
+                <!-- Form fields will be dynamically generated -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideChannelConfig()">取消</button>
+                <button class="btn btn-primary" onclick="saveChannelConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Provider Config Modal -->
+    <div class="modal-overlay" id="providerConfigModal">
+        <div class="modal" style="max-width: 600px;">
+            <h3 class="modal-title">配置 Provider - <span id="providerConfigTitle"></span></h3>
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input type="password" class="form-input" id="providerApiKey" placeholder="输入 API Key">
+                <div class="form-description">你的 API 密钥，用于访问该 Provider 的服务</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">API Base URL</label>
+                <input type="text" class="form-input" id="providerApiBase" placeholder="https://api.example.com/v1">
+                <div class="form-description">可选，自定义 API 端点地址（用于兼容 OpenAI 的 API）</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideProviderConfig()">取消</button>
+                <button class="btn btn-primary" onclick="saveProviderConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Config Modal (Removed - using inline edit now) -->
 
     <!-- New Cron Job Modal -->
     <div class="modal-overlay" id="newJobModal">
@@ -1139,8 +1474,48 @@
             currentPage: 'dashboard',
             sessionKey: 'web:default',
             isLoading: false,
-            chatSessions: []
+            chatSessions: [],
+            sessionGroups: [],
+            currentChannelConfig: {},
+            currentChannelName: '',
+            currentProviderName: '',
+            renamingSessionKey: '',
+            autoRefreshInterval: null,  // 定时刷新会话消息的定时器
+            websocket: null,  // WebSocket connection for real-time events
+            websocketReconnectDelay: 1000  // Initial reconnect delay in ms
         };
+
+        // Provider list with default models
+        const PROVIDERS = [
+            { name: 'custom', displayName: '自定义 (OpenAI 兼容)', defaultModel: 'gpt-3.5-turbo' },
+            { name: 'openai', displayName: 'OpenAI', defaultModel: 'gpt-4.1' },
+            { name: 'azure_openai', displayName: 'Azure OpenAI', defaultModel: 'gpt-4' },
+            { name: 'anthropic', displayName: 'Anthropic', defaultModel: 'claude-sonnet-4-20250514' },
+            { name: 'openrouter', displayName: 'OpenRouter', defaultModel: 'anthropic/claude-sonnet-4' },
+            { name: 'deepseek', displayName: 'DeepSeek', defaultModel: 'deepseek-chat' },
+            { name: 'groq', displayName: 'Groq', defaultModel: 'llama-3.1-70b-versatile' },
+            { name: 'zhipu', displayName: '智谱 AI', defaultModel: 'glm-4' },
+            { name: 'dashscope', displayName: '阿里云通义千问', defaultModel: 'qwen-max' },
+            { name: 'ollama', displayName: 'Ollama (本地)', defaultModel: 'llama3' },
+            { name: 'vllm', displayName: 'vLLM (本地)', defaultModel: 'Qwen/Qwen2.5-7B-Instruct' },
+            { name: 'gemini', displayName: 'Google Gemini', defaultModel: 'gemini-2.0-flash-exp' },
+            { name: 'moonshot', displayName: '月之暗面', defaultModel: 'moonshot-v1-8k' },
+            { name: 'minimax', displayName: 'MiniMax', defaultModel: 'minimax-text-01' },
+            { name: 'aihubmix', displayName: 'AiHubMix', defaultModel: 'gpt-3.5-turbo' },
+            { name: 'siliconflow', displayName: 'SiliconFlow 硅基流动', defaultModel: 'Qwen/Qwen2.5-7B-Instruct' },
+            { name: 'volcengine', displayName: '火山引擎', defaultModel: 'Doubao-pro-4k' },
+            { name: 'volcengine_coding_plan', displayName: '火山引擎 Coding Plan', defaultModel: 'Doubao-code-c-32k' },
+            { name: 'byteplus', displayName: 'BytePlus', defaultModel: 'Doubao-pro-4k' },
+            { name: 'byteplus_coding_plan', displayName: 'BytePlus Coding Plan', defaultModel: 'Doubao-code-c-32k' },
+            { name: 'openai_codex', displayName: 'OpenAI Codex', defaultModel: 'codex-latest' },
+            { name: 'github_copilot', displayName: 'GitHub Copilot', defaultModel: 'copilot' }
+        ];
+
+        // Provider 到默认模型的映射
+        const PROVIDER_DEFAULT_MODELS = {};
+        PROVIDERS.forEach(p => {
+            PROVIDER_DEFAULT_MODELS[p.name] = p.defaultModel;
+        });
 
         // ============================================================
         // Navigation
@@ -1164,7 +1539,6 @@
             const titles = {
                 dashboard: 'Dashboard',
                 chat: '对话',
-                channels: '渠道管理',
                 sessions: '会话管理',
                 cron: '定时任务',
                 settings: '系统设置'
@@ -1189,12 +1563,6 @@
                 case 'dashboard':
                     loadDashboard();
                     break;
-                case 'channels':
-                    loadChannels();
-                    break;
-                case 'sessions':
-                    loadSessions();
-                    break;
                 case 'cron':
                     loadCronJobs();
                     break;
@@ -1214,23 +1582,62 @@
         // ============================================================
         async function loadDashboard() {
             try {
-                const response = await fetch(API_BASE + '/api/status');
-                const data = await response.json();
+                const statusResponse = await fetch(API_BASE + '/api/status');
+                if (!statusResponse.ok) {
+                    throw new Error('API status: ' + statusResponse.status);
+                }
+                const statusData = await statusResponse.json();
+                console.log('[Dashboard] status data:', statusData);
 
-                document.getElementById('systemVersion').textContent = 'v' + data.version;
-                document.getElementById('currentModel').textContent = data.model || '-';
-                document.getElementById('cronJobs').textContent = data.cron?.jobs || 0;
+                // 同时获取配置以显示当前 provider
+                const configResponse = await fetch(API_BASE + '/api/config');
+                if (!configResponse.ok) {
+                    throw new Error('API config: ' + configResponse.status);
+                }
+                const configData = await configResponse.json();
+                console.log('[Dashboard] config data:', configData);
+                const currentProvider = configData.agents?.defaults?.provider || 'auto';
 
-                const hb = data.heartbeat;
+                const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+
+                el('systemVersion', 'v' + (statusData.version || '0.1.4'));
+
+                // 显示当前模型和 provider
+                const model = statusData.model || '-';
+                const providerDisplay = currentProvider === 'auto' ? '🤖 自动' : currentProvider;
+                el('currentModel', `${model} (${providerDisplay})`);
+
+                el('cronJobs', statusData.cron?.jobs || 0);
+
+                const hb = statusData.heartbeat;
                 if (hb && hb.enabled) {
-                    document.getElementById('heartbeatStatus').textContent = hb.interval_s + 's';
+                    el('heartbeatStatus', hb.interval_s + 's');
                 } else {
-                    document.getElementById('heartbeatStatus').textContent = '已禁用';
+                    el('heartbeatStatus', '已禁用');
                 }
 
-                // Provider list
+                // Uptime
+                if (statusData.uptime_seconds) {
+                    el('uptimeDisplay', formatUptime(statusData.uptime_seconds));
+                } else {
+                    el('uptimeDisplay', '-');
+                }
+
+                // Agent status
+                el('agentStatus', statusData.agent_initialized ? '✅' : '❌');
+
+                // System resources
+                if (statusData.system) {
+                    el('memoryUsage', statusData.system.memory_mb + ' MB');
+                    el('cpuUsage', statusData.system.cpu_percent + '%');
+                } else {
+                    el('memoryUsage', '-');
+                    el('cpuUsage', '-');
+                }
+
+                // Provider list - 显示所有配置的 provider 并标记当前使用的
                 const providerList = document.getElementById('providerList');
-                const providers = data.providers || {};
+                const providers = statusData.providers || {};
                 const providerNames = Object.keys(providers);
 
                 if (providerNames.length === 0) {
@@ -1240,23 +1647,244 @@
                         const p = providers[name];
                         const statusClass = p.configured ? 'active' : 'inactive';
                         const statusText = p.configured ? '已配置' : '未配置';
+                        const currentBadge = name === currentProvider ? ' <span style="font-size: 11px; background: #f59e0b; color: white; padding: 1px 4px; border-radius: 3px;">当前</span>' : '';
+                        const configInfo = p.api_key_preview ? `<div style="font-size: 11px; color: var(--text-muted);">Key: ${p.api_key_preview}</div>` : '';
                         return `
-                            <div class="status-item">
+                            <div class="status-item" style="cursor: pointer;" onclick="showProviderConfig('${name}')">
                                 <div class="status-item-name">
                                     <span class="status-dot ${statusClass}"></span>
-                                    <span>${name}</span>
+                                    <span>${name}${currentBadge}</span>
                                 </div>
-                                <span style="font-size: 13px; color: var(--text-muted);">${statusText}</span>
+                                <div style="text-align: right;">
+                                    <span style="font-size: 13px; color: var(--text-muted);">${statusText}</span>
+                                    ${configInfo}
+                                </div>
                             </div>
                         `;
                     }).join('');
                 }
 
-                // Channel list
+                // Channel list - 从 status API 获取渠道信息
                 const channelList = document.getElementById('channelList');
-                // Will be populated by loadChannels
+                const channels = statusData.channels || {};
+                const channelNames = Object.keys(channels);
+
+                if (channelNames.length === 0) {
+                    channelList.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">暂无渠道</div>';
+                } else {
+                    channelList.innerHTML = channelNames.map(name => {
+                        const ch = channels[name];
+                        const enabled = ch.enabled || false;
+                        const running = ch.running || false;
+                        const configured = ch.configured || false;
+                        const displayName = ch.display_name || name;
+                        let statusHtml = '';
+                        if (running) {
+                            statusHtml = '<span style="font-size: 12px; color: var(--success);">● 运行中</span>';
+                        } else if (enabled) {
+                            statusHtml = '<span style="font-size: 12px; color: var(--warning);">● 已启用</span>';
+                        } else {
+                            statusHtml = '<span style="font-size: 12px; color: var(--text-muted);">● 已禁用</span>';
+                        }
+                        const configBadge = configured ? ' <span style="font-size: 11px; background: #10a37f; color: white; padding: 1px 4px; border-radius: 3px;">已配置</span>' : ' <span style="font-size: 11px; background: #6b6b80; color: white; padding: 1px 4px; border-radius: 3px;">未配置</span>';
+                        return `
+                            <div class="status-item" style="cursor: pointer;" onclick="showChannelConfig('${name}')">
+                                <div class="status-item-name">
+                                    <span class="status-dot ${enabled ? 'active' : 'inactive'}"></span>
+                                    <span>${displayName}${configBadge}</span>
+                                </div>
+                                ${statusHtml}
+                            </div>
+                        `;
+                    }).join('');
+                }
             } catch (error) {
-                console.error('Failed to load dashboard:', error);
+                console.error('[Dashboard] Failed to load:', error);
+                alert('Dashboard 加载失败：' + error.message);
+            }
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+
+            if (days > 0) {
+                return `${days}天 ${hours}时`;
+            } else if (hours > 0) {
+                return `${hours}时 ${minutes}分`;
+            } else if (minutes > 0) {
+                return `${minutes}分 ${secs}秒`;
+            } else {
+                return `${secs}秒`;
+            }
+        }
+
+        // Auto refresh dashboard every 30 seconds
+        setInterval(loadDashboard, 30000);
+
+        // ============================================================
+        // Providers
+        // ============================================================
+        async function loadProviders() {
+            try {
+                const statusResponse = await fetch(API_BASE + '/api/status');
+                const statusData = await statusResponse.json();
+                const providers = statusData.providers || {};
+
+                // 获取当前使用的 provider
+                const configResponse = await fetch(API_BASE + '/api/config');
+                const configData = await configResponse.json();
+                const currentProvider = configData.agents?.defaults?.provider || 'auto';
+
+                const grid = document.getElementById('providersGrid');
+                const html = PROVIDERS.map(p => {
+                    const config = providers[p.name] || { configured: false, status: 'api_key' };
+                    const statusClass = config.configured ? 'configured' : 'unconfigured';
+                    const statusText = config.configured ? '已配置' : '未配置';
+
+                    // 标记当前使用的 provider
+                    const isCurrent = p.name === currentProvider;
+                    const currentBadge = isCurrent ? '<span style="font-size: 11px; background: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">当前使用</span>' : '';
+
+                    // 根据 status 类型显示不同信息
+                    let providerType = '';
+                    let configDetails = '';
+
+                    if (config.status === 'oauth') {
+                        providerType = '<span style="font-size: 11px; background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">OAuth</span>';
+                        configDetails = config.configured ? '已授权' : '未授权';
+                    } else if (config.status === 'local') {
+                        providerType = '<span style="font-size: 11px; background: #10a37f; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">本地</span>';
+                        configDetails = config.configured ? `已配置 API Base: ${config.api_base || '-'}` : '未配置 API Base';
+                    } else {
+                        configDetails = config.configured ? '已配置 API Key' : '未配置 API Key';
+                        if (config.configured && config.api_base) {
+                            configDetails += `<div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">API Base: ${config.api_base}</div>`;
+                        }
+                    }
+
+                    return `
+                        <div class="provider-card">
+                            <div class="provider-card-header">
+                                <span class="provider-name">${p.displayName}${providerType}${currentBadge}</span>
+                                <span class="provider-status ${statusClass}">${statusText}</span>
+                            </div>
+                            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                                ${configDetails}
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="showProviderConfig('${p.name}')" style="width: 100%;">
+                                ${config.configured ? '✏️ 编辑配置' : '⚙️ 配置'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                grid.innerHTML = html;
+            } catch (error) {
+                console.error('Failed to load providers:', error);
+                document.getElementById('providersGrid').innerHTML = '<div style="color: var(--danger); text-align: center; padding: 40px;">加载失败：' + error.message + '</div>';
+            }
+        }
+
+        function showProviderConfig(name) {
+            state.currentProviderName = name;
+            const provider = PROVIDERS.find(p => p.name === name);
+            document.getElementById('providerConfigTitle').textContent = provider ? provider.displayName : name;
+
+            // 根据 provider 类型显示不同的表单
+            const apiKeyGroup = document.getElementById('providerApiKey').parentElement;
+            const apiBaseGroup = document.getElementById('providerApiBase').parentElement;
+
+            // 加载当前配置
+            fetch(API_BASE + '/api/config')
+                .then(res => res.json())
+                .then(data => {
+                    const providers = data.providers || {};
+                    const config = providers[name] || {};
+
+                    // OAuth provider (如 openai_codex, github_copilot)
+                    if (name === 'openai_codex' || name === 'github_copilot') {
+                        apiKeyGroup.style.display = 'none';
+                        apiBaseGroup.style.display = 'block';
+                        document.getElementById('providerApiBase').value = config.api_base || '';
+                        document.querySelector('#providerConfigModal .form-description').textContent =
+                            'OAuth 认证，无需 API Key。如需自定义 API 端点可填写 API Base URL';
+                    } else if (name === 'ollama' || name === 'vllm' || name === 'custom') {
+                        // 本地 provider
+                        apiKeyGroup.style.display = 'block';
+                        apiBaseGroup.style.display = 'block';
+                        document.getElementById('providerApiKey').value = config.api_key || '';
+                        document.getElementById('providerApiBase').value = config.api_base || '';
+                        document.querySelector('#providerConfigModal .form-description').textContent =
+                            '本地部署的模型服务，需要填写 API Base URL（如 http://localhost:11434）';
+                    } else {
+                        // 标准 API Key provider
+                        apiKeyGroup.style.display = 'block';
+                        apiBaseGroup.style.display = 'block';
+                        document.getElementById('providerApiKey').value = config.api_key || '';
+                        document.getElementById('providerApiBase').value = config.api_base || '';
+                        document.querySelector('#providerConfigModal .form-description').textContent =
+                            '你的 API 密钥，用于访问该 Provider 的服务';
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to load provider config:', err);
+                });
+
+            document.getElementById('providerConfigModal').classList.add('active');
+        }
+
+        function hideProviderConfig() {
+            document.getElementById('providerConfigModal').classList.remove('active');
+            state.currentProviderName = '';
+        }
+
+        async function saveProviderConfig() {
+            const apiKey = document.getElementById('providerApiKey').value.trim();
+            const apiBase = document.getElementById('providerApiBase').value.trim();
+            const providerName = state.currentProviderName;
+
+            // OAuth provider 不需要 API Key
+            const isOAuth = providerName === 'openai_codex' || providerName === 'github_copilot';
+            const isLocal = providerName === 'ollama' || providerName === 'vllm' || providerName === 'custom';
+
+            if (!isOAuth && !apiKey && !apiBase) {
+                alert('请至少填写 API Key 或 API Base URL');
+                return;
+            }
+
+            if (isLocal && !apiBase) {
+                alert('本地 Provider 需要填写 API Base URL');
+                return;
+            }
+
+            const config = {};
+            if (apiKey) config.api_key = apiKey;
+            if (apiBase) config.api_base = apiBase;
+
+            try {
+                const response = await fetch(API_BASE + '/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        providers: {
+                            [state.currentProviderName]: config
+                        }
+                    })
+                });
+
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    alert('Provider 配置已保存');
+                    hideProviderConfig();
+                    loadProviders();
+                } else {
+                    alert('保存失败：' + (result.message || '未知错误'));
+                }
+            } catch (error) {
+                alert('保存失败：' + error.message);
             }
         }
 
@@ -1291,20 +1919,35 @@
                 if (channels.length === 0) {
                     grid.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px;">暂无渠道</div>';
                 } else {
-                    grid.innerHTML = channels.map(ch => `
-                        <div class="channel-card">
-                            <div class="channel-card-header">
-                                <span class="channel-name">${ch.display_name || ch.name}</span>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" ${ch.enabled ? 'checked' : ''} onchange="toggleChannel('${ch.name}', this.checked)">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                    grid.innerHTML = channels.map(ch => {
+                        const configItems = ch.config && Object.keys(ch.config).length > 0
+                            ? Object.entries(ch.config)
+                                .filter(([k]) => k !== 'enabled')
+                                .slice(0, 3)
+                                .map(([k, v]) => {
+                                    const displayValue = typeof v === 'string' && v ? (v.length > 15 ? v.substring(0, 15) + '...' : v) : (typeof v === 'boolean' ? (v ? '是' : '否') : v);
+                                    return `<div class="channel-config-item"><span>${k}</span><span style="color: var(--text-secondary);">${displayValue || '-'}</span></div>`;
+                                }).join('')
+                            : '<div style="text-align: center; padding: 8px; color: var(--text-muted);">无额外配置</div>';
+
+                        return `
+                            <div class="channel-card">
+                                <div class="channel-card-header">
+                                    <span class="channel-name">${ch.display_name || ch.name}</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" ${ch.enabled ? 'checked' : ''} onchange="toggleChannel('${ch.name}', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="channel-config-preview">
+                                    ${configItems}
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="showChannelConfig('${ch.name}')" style="width: 100%;">
+                                    ⚙️ 详细配置
+                                </button>
                             </div>
-                            <div style="font-size: 13px; color: var(--text-muted);">
-                                ${ch.config && Object.keys(ch.config).length > 0 ? JSON.stringify(ch.config) : '无额外配置'}
-                            </div>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 }
             } catch (error) {
                 console.error('Failed to load channels:', error);
@@ -1318,6 +1961,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled })
                 });
+                loadChannels();
             } catch (error) {
                 console.error('Failed to toggle channel:', error);
                 alert('切换失败：' + error.message);
@@ -1325,53 +1969,484 @@
         }
 
         // ============================================================
-        // Sessions
+        // Session Management (Integrated in Chat)
         // ============================================================
-        async function loadSessions() {
+        function showNewSessionModal() {
+            document.getElementById('newSessionName').value = '';
+            document.getElementById('newSessionModal').classList.add('active');
+        }
+
+        function hideNewSessionModal() {
+            document.getElementById('newSessionModal').classList.remove('active');
+        }
+
+        async function createNewSessionWithName() {
+            const name = document.getElementById('newSessionName').value.trim();
+            const id = Math.random().toString(36).substring(2, 8);
+            const key = `web:${id}`;
+
             try {
-                const response = await fetch(API_BASE + '/api/sessions');
-                const data = await response.json();
-
-                const list = document.getElementById('sessionsList');
-                const sessions = data.sessions || [];
-
-                if (sessions.length === 0) {
-                    list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px;">暂无会话</div>';
-                } else {
-                    list.innerHTML = sessions.map(s => `
-                        <div class="session-item" onclick="viewSession('${s.key}')">
-                            <div class="session-info">
-                                <div class="session-key">${s.key}</div>
-                                <div class="session-meta">消息数：${s.message_count || 0}</div>
-                            </div>
-                            <div class="session-actions">
-                                <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSession('${s.key}')">删除</button>
-                            </div>
-                        </div>
-                    `).join('');
-                }
+                await fetch(API_BASE + '/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key, title: name || id })
+                });
+                hideNewSessionModal();
+                await loadChatSessions();
+                switchChatSession(key);
             } catch (error) {
-                console.error('Failed to load sessions:', error);
+                console.error('Failed to create session:', error);
+                alert('创建会话失败：' + error.message);
             }
         }
 
-        async function deleteSession(key) {
+        function showRenameSessionModal(key) {
+            state.renamingSessionKey = key;
+            const title = getSessionTitle(key);
+            document.getElementById('renameSessionName').value = title;
+            document.getElementById('renameSessionModal').classList.add('active');
+        }
+
+        function hideRenameSessionModal() {
+            document.getElementById('renameSessionModal').classList.remove('active');
+            state.renamingSessionKey = '';
+        }
+
+        function getSessionTitle(key) {
+            const session = state.chatSessions.find(s => s.key === key);
+            if (session && session.title) {
+                return session.title;
+            }
+            const parts = key.split(':');
+            return parts.length > 1 ? parts[1] : key;
+        }
+
+        async function renameSession() {
+            const newTitle = document.getElementById('renameSessionName').value.trim();
+            if (!newTitle) {
+                alert('请输入名称');
+                return;
+            }
+
+            try {
+                await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(state.renamingSessionKey) + '/title', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: newTitle })
+                });
+
+                // Update local state
+                const session = state.chatSessions.find(s => s.key === state.renamingSessionKey);
+                if (session) {
+                    session.title = newTitle;
+                }
+
+                hideRenameSessionModal();
+                loadChatSessions();
+            } catch (error) {
+                console.error('Failed to rename session:', error);
+                alert('重命名失败：' + error.message);
+            }
+        }
+
+        // Load chat sessions from API
+        async function loadChatSessions() {
+            try {
+                // Load sessions and groups in parallel
+                const [sessionsRes, groupsRes] = await Promise.all([
+                    fetch(API_BASE + '/api/sessions'),
+                    fetch(API_BASE + '/api/session-groups')
+                ]);
+
+                const sessionsData = await sessionsRes.json();
+                const groupsData = await groupsRes.json();
+
+                state.chatSessions = sessionsData.sessions || [];
+                state.sessionGroups = groupsData.groups || [];
+
+                const listDiv = document.getElementById('chatSessionList');
+                if (state.chatSessions.length === 0) {
+                    listDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; font-size: 13px;">暂无会话<br>点击右上角 + 创建</div>';
+                } else {
+                    // Group sessions using backend groups
+                    const groups = groupSessionsByBackend(state.chatSessions, state.sessionGroups);
+
+                    let html = '';
+                    for (const group of groups) {
+                        html += `
+                            <div class="session-group">
+                                <div class="session-group-header" onclick="toggleSessionGroup(this)">
+                                    <div class="session-group-title">
+                                        <span class="session-group-icon">${group.icon || '📁'}</span>
+                                        <span>${group.name || '未命名分组'}</span>
+                                        <span class="session-group-count">${group.sessions.length}</span>
+                                    </div>
+                                    <span class="session-group-arrow">▼</span>
+                                </div>
+                                <div class="session-group-items">
+                                    ${group.sessions.map(s => {
+                                        const isActive = s.key === state.sessionKey;
+                                        const title = getSessionTitle(s.key);
+                                        const lastMessage = getLastMessagePreview(s);
+                                        return `
+                                            <div class="session-item ${isActive ? 'active' : ''}" onclick="switchChatSession('${s.key}')">
+                                                <div class="session-item-header">
+                                                    <span class="session-item-title">${title}</span>
+                                                    <div class="session-item-actions">
+                                                        <button class="session-item-btn" onclick="event.stopPropagation(); showRenameSessionModal('${s.key}')" title="重命名">✏️</button>
+                                                        <button class="session-item-btn" onclick="event.stopPropagation(); deleteChatSession('${s.key}')" title="删除">×</button>
+                                                    </div>
+                                                </div>
+                                                ${lastMessage ? `<div class="session-item-meta">${lastMessage}</div>` : ''}
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    listDiv.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Failed to load chat sessions:', error);
+            }
+        }
+
+        // Group sessions using backend groups API
+        function groupSessionsByBackend(sessions, groups) {
+            if (!groups || groups.length === 0) {
+                // No groups, put all sessions in "all" group
+                return [{
+                    id: 'all',
+                    name: '全部会话',
+                    icon: '📄',
+                    sessions: sessions
+                }];
+            }
+
+            // Create a map of session key to session data
+            const sessionMap = {};
+            sessions.forEach(s => {
+                sessionMap[s.key] = s;
+            });
+
+            // Build grouped result
+            const result = [];
+            const usedSessions = new Set();
+
+            groups.forEach(group => {
+                const groupSessions = [];
+                group.sessions.forEach(key => {
+                    if (sessionMap[key]) {
+                        groupSessions.push(sessionMap[key]);
+                        usedSessions.add(key);
+                    }
+                });
+
+                if (groupSessions.length > 0) {
+                    result.push({
+                        id: group.id,
+                        name: group.name,
+                        icon: group.icon,
+                        sessions: groupSessions
+                    });
+                }
+            });
+
+            // Add ungrouped sessions
+            const ungrouped = sessions.filter(s => !usedSessions.has(s.key));
+            if (ungrouped.length > 0) {
+                result.push({
+                    id: 'ungrouped',
+                    name: '其他会话',
+                    icon: '📄',
+                    sessions: ungrouped
+                });
+            }
+
+            return result;
+        }
+
+        function getLastMessagePreview(session) {
+            if (session.message_count && session.message_count > 0) {
+                return `${session.message_count} 条消息`;
+            }
+            return '';
+        }
+
+        function toggleSessionGroup(header) {
+            header.classList.toggle('collapsed');
+        }
+
+        // Toggle chat sidebar collapse/expand
+        function toggleChatSidebar() {
+            const sidebar = document.getElementById('chatSidebar');
+            const btn = sidebar.querySelector('.chat-sidebar-header button:first-child');
+            sidebar.classList.toggle('collapsed');
+            btn.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+        }
+
+        // Switch to a different session
+        function switchChatSession(key) {
+            state.sessionKey = key;
+            loadChatSessions(); // Refresh to update active highlight
+            loadChatMessages(key);
+            // No need for auto-refresh interval - WebSocket handles real-time updates
+        }
+
+        // Load chat messages for a session
+        async function loadChatMessages(key) {
+            try {
+                const response = await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key));
+                const data = await response.json();
+                const messages = data.messages || [];
+
+                const messagesDiv = document.getElementById('chatMessages');
+                messagesDiv.innerHTML = '';
+
+                if (messages.length === 0) {
+                    messagesDiv.innerHTML = `
+                        <div class="message message-assistant">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">
+                                <div class="message-header">
+                                    <span class="message-name">nanobot</span>
+                                    <span class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <div class="message-body">
+                                    新会话已开始。有什么我可以帮助你的吗？
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messages.forEach(msg => {
+                        const role = msg.role === 'user' ? 'user' : 'assistant';
+                        const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+                        // Filter out tool role messages and internal metadata
+                        if (msg.role === 'tool') return;
+
+                        // Filter out messages with internal metadata markers
+                        const metadata = msg.metadata || {};
+                        if (metadata._progress || metadata._tool_hint) return;
+
+                        addChatMessage(role, msg.content, time);
+                    });
+                }
+
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) {
+                console.error('Failed to load chat messages:', error);
+            }
+        }
+
+        // Delete chat session
+        async function deleteChatSession(key) {
             if (!confirm('确定要删除会话 "' + key + '" 吗？')) return;
 
             try {
                 await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key), {
                     method: 'DELETE'
                 });
-                loadSessions();
+
+                // If deleting current session, switch to default
+                if (key === state.sessionKey) {
+                    state.sessionKey = 'web:default';
+                }
+
+                await loadChatSessions();
+                if (state.sessionKey !== key) {
+                    loadChatMessages(state.sessionKey);
+                }
             } catch (error) {
                 console.error('Failed to delete session:', error);
                 alert('删除失败：' + error.message);
             }
         }
 
-        function viewSession(key) {
-            state.sessionKey = key;
-            navigateTo('chat');
+        // ============================================================
+        // Chat
+        // ============================================================
+        function handleChatKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message || state.isLoading) return;
+
+            // Add user message
+            addChatMessage('user', message);
+
+            input.value = '';
+            autoResizeTextarea(input);
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            state.isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            try {
+                const response = await fetch(API_BASE + '/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        session_key: state.sessionKey
+                    })
+                });
+
+                // Remove typing indicator
+                removeTypingIndicator();
+
+                // Read SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let assistantMessageDiv = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'progress') {
+                                showProgress(data.content);
+                            } else if (data.type === 'response') {
+                                if (!assistantMessageDiv) {
+                                    assistantMessageDiv = addChatMessage('assistant', data.content);
+                                } else {
+                                    assistantMessageDiv.querySelector('.message-body').innerHTML = formatMessage(data.content);
+                                }
+                            } else if (data.type === 'error') {
+                                addChatMessage('assistant', '错误：' + data.content);
+                            }
+                        }
+                    }
+                }
+
+                // Refresh session list to update message count
+                loadChatSessions();
+                // No need for auto-refresh interval - WebSocket handles real-time updates
+
+            } catch (error) {
+                removeTypingIndicator();
+                addChatMessage('assistant', '错误：' + error.message);
+            } finally {
+                state.isLoading = false;
+                document.getElementById('sendBtn').disabled = false;
+            }
+        }
+
+        function addChatMessage(role, content, customTime = null) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const time = customTime || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            const relativeTime = customTime ? getRelativeTime(new Date(customTime)) : '刚刚';
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-' + role;
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${role === 'user' ? '👤' : '🤖'}</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-name">${role === 'user' ? '你' : 'nanobot'}</span>
+                        <span class="message-time">${time} <span style="color: var(--text-muted); margin-left: 4px;">(${relativeTime})</span></span>
+                    </div>
+                    <div class="message-body">${formatMessage(content)}</div>
+                </div>
+            `;
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            return messageDiv;
+        }
+
+        function getRelativeTime(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSecs = Math.floor(diffMs / 1000);
+            const diffMins = Math.floor(diffSecs / 60);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffSecs < 60) return '刚刚';
+            if (diffMins < 60) return `${diffMins}分钟前`;
+            if (diffHours < 24) return `${diffHours}小时前`;
+            if (diffDays < 7) return `${diffDays}天前`;
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        function formatMessage(content) {
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        if (typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+                            return hljs.highlight(code, { language: lang }).value;
+                        }
+                        return code;
+                    }
+                });
+                // 处理 <think> 标签，渲染为可折叠的思考过程
+                let processedContent = content.replace(/<think>([\s\S]*?)<\/think>/g, function(match, thought) {
+                    return '<details class="thought-block"><summary>💭 思考过程</summary><div class="thought-content">' + marked.parse(thought) + '</div></details>';
+                });
+                return marked.parse(processedContent);
+            }
+
+            return content
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function showTypingIndicator() {
+            const messagesDiv = document.getElementById('chatMessages');
+            const indicator = document.createElement('div');
+            indicator.id = 'typingIndicator';
+            indicator.className = 'message message-assistant';
+            indicator.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            messagesDiv.appendChild(indicator);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function showProgress(content) {
+            console.log('Progress:', content);
+        }
+
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
         }
 
         // ============================================================
@@ -1389,17 +2464,16 @@
                     list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px;">暂无定时任务</div>';
                 } else {
                     list.innerHTML = jobs.map(job => `
-                        <div class="session-item">
-                            <div class="session-info">
-                                <div class="session-key">${job.name || 'Unnamed'}</div>
-                                <div class="session-meta">
+                        <div style="background: var(--bg-card); border-radius: var(--radius); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; margin-bottom: 4px;">${job.name || 'Unnamed'}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">
                                     ${job.schedule_kind === 'cron' && job.cron_expr ? 'Cron: ' + job.cron_expr : ''}
                                     ${job.schedule_kind === 'every' && job.interval_s ? '每 ' + job.interval_s + ' 秒' : ''}
-                                    ${!job.schedule_kind ? '未定义' : ''}
                                 </div>
-                                <div class="session-meta" style="margin-top: 4px;">${job.message || '无消息'}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${job.message || '无消息'}</div>
                             </div>
-                            <div class="session-actions">
+                            <div style="display: flex; gap: 8px;">
                                 <button class="btn btn-secondary btn-sm" onclick="runCronJob('${job.id}')">运行</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteCronJob('${job.id}')">删除</button>
                             </div>
@@ -1417,7 +2491,6 @@
 
         function hideNewJobModal() {
             document.getElementById('newJobModal').classList.remove('active');
-            // Clear inputs
             document.getElementById('jobName').value = '';
             document.getElementById('jobMessage').value = '';
             document.getElementById('jobCron').value = '';
@@ -1475,309 +2548,320 @@
         // ============================================================
         // Settings
         // ============================================================
+        let isEditMode = false;
+        let configuredProviders = new Set(); // 已配置的 Provider 集合
+
         async function loadSettings() {
             try {
                 const response = await fetch(API_BASE + '/api/config');
                 const data = await response.json();
+
+                // 获取已配置的 Provider 列表（从 status API）
+                try {
+                    const statusResponse = await fetch(API_BASE + '/api/status');
+                    const statusData = await statusResponse.json();
+                    configuredProviders.clear();
+                    Object.entries(statusData.providers || {}).forEach(([name, config]) => {
+                        if (config.configured) {
+                            configuredProviders.add(name);
+                        }
+                    });
+                } catch (e) {
+                    console.error('Failed to load provider status:', e);
+                }
+
+                // 填充 Provider 下拉框（已配置的显示 ✅ 标记）
+                const providerSelect = document.getElementById('settingProvider');
+                const currentProvider = data.agents?.defaults?.provider || 'auto';
+                providerSelect.innerHTML = '<option value="auto">🤖 自动选择（根据模型名）</option>';
+                PROVIDERS.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.name;
+                    const isConfigured = configuredProviders.has(p.name);
+                    option.textContent = p.displayName + (isConfigured ? ' ✅' : '');
+                    if (p.name === currentProvider) {
+                        option.selected = true;
+                    }
+                    providerSelect.appendChild(option);
+                });
 
                 document.getElementById('settingModel').value = data.agents?.defaults?.model || '-';
                 document.getElementById('settingTemperature').value = data.agents?.defaults?.temperature || 0.7;
                 document.getElementById('settingMaxTokens').value = data.agents?.defaults?.max_tokens || 4096;
                 document.getElementById('settingContextWindow').value = data.agents?.defaults?.context_window_tokens || 8192;
                 document.getElementById('settingWorkspace').value = data.agents?.defaults?.workspace || '-';
+                document.getElementById('settingGatewayPort').value = data.gateway?.port || 18790;
+                document.getElementById('settingHeartbeatInterval').value = data.gateway?.heartbeat?.interval_s || 1800;
+                document.getElementById('settingConfigPath').value = window.location.hostname + ':' + (data.gateway?.port || 18790);
             } catch (error) {
                 console.error('Failed to load settings:', error);
             }
         }
 
-        // ============================================================
-        // Chat
-        // ============================================================
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const inputs = [
+                'settingProvider', 'settingModel', 'settingTemperature',
+                'settingMaxTokens', 'settingContextWindow',
+                'settingGatewayPort', 'settingHeartbeatInterval'
+            ];
+            inputs.forEach(id => {
+                document.getElementById(id).disabled = !isEditMode;
+            });
+            document.getElementById('editBtn').style.display = isEditMode ? 'none' : 'inline-flex';
+            document.getElementById('saveBtn').style.display = isEditMode ? 'inline-flex' : 'none';
 
-        // Load chat sessions from API
-        async function loadChatSessions() {
-            try {
-                const response = await fetch(API_BASE + '/api/sessions');
-                const data = await response.json();
-                state.chatSessions = data.sessions || [];
-
-                const listDiv = document.getElementById('chatSessionList');
-                if (state.chatSessions.length === 0) {
-                    listDiv.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; font-size: 13px;">暂无会话<br>点击右上角 + 创建</div>';
-                } else {
-                    listDiv.innerHTML = state.chatSessions.map(s => {
-                        const isActive = s.key === state.sessionKey;
-                        const title = s.key.split(':')[1] || s.key;
-                        return `
-                            <div style="padding: 12px; margin-bottom: 8px; background: ${isActive ? 'var(--primary-light)' : 'var(--bg-input)'}; border-radius: 8px; cursor: pointer; border-left: 3px solid ${isActive ? 'var(--primary)' : 'transparent'};"
-                                 onclick="switchChatSession('${s.key}')"
-                                 onmouseover="this.style.background='var(--primary-light)'"
-                                 onmouseout="this.style.background='${isActive ? 'var(--primary-light)' : 'var(--bg-input)'}'">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-size: 13px; color: ${isActive ? 'var(--primary)' : 'var(--text-secondary)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${title}</span>
-                                    <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0 4px;"
-                                            onclick="event.stopPropagation(); deleteChatSession('${s.key}')"
-                                            title="删除会话">×</button>
-                                </div>
-                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-                                    ${s.message_count || 0} 条消息
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                }
-            } catch (error) {
-                console.error('Failed to load chat sessions:', error);
-            }
-        }
-
-        // Create new session
-        async function createNewSession() {
-            const id = Math.random().toString(36).substring(2, 8);
-            const key = `web:${id}`;
-
-            try {
-                await fetch(API_BASE + '/api/sessions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: key, title: id })
-                });
-                await loadChatSessions();
-                switchChatSession(key);
-            } catch (error) {
-                console.error('Failed to create session:', error);
-                alert('创建会话失败：' + error.message);
-            }
-        }
-
-        // Switch to a different session
-        function switchChatSession(key) {
-            state.sessionKey = key;
-            loadChatSessions(); // Refresh to update active highlight
-            loadChatMessages(key);
-        }
-
-        // Load chat messages for a session
-        async function loadChatMessages(key) {
-            try {
-                const response = await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key));
-                const data = await response.json();
-                const messages = data.messages || [];
-
-                const messagesDiv = document.getElementById('chatMessages');
-                messagesDiv.innerHTML = '';
-
-                if (messages.length === 0) {
-                    messagesDiv.innerHTML = `
-                        <div class="message message-assistant">
-                            <div class="message-avatar">🤖</div>
-                            <div class="message-content">
-                                <div class="message-header">
-                                    <span class="message-name">nanobot</span>
-                                    <span class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                                <div class="message-body">
-                                    新会话已开始。有什么我可以帮助你的吗？
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    messages.forEach(msg => {
-                        const role = msg.role === 'user' ? 'user' : 'assistant';
-                        const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                        addChatMessage(role, msg.content, time);
+            // 如果是开启编辑模式，添加 Provider 变更监听
+            if (isEditMode) {
+                const providerSelect = document.getElementById('settingProvider');
+                if (providerSelect) {
+                    // 移除旧的监听器（如果有）
+                    providerSelect.replaceWith(providerSelect.cloneNode(true));
+                    // 添加新的监听器
+                    const newProviderSelect = document.getElementById('settingProvider');
+                    newProviderSelect.addEventListener('change', function() {
+                        const selectedProvider = this.value;
+                        if (selectedProvider !== 'auto' && PROVIDER_DEFAULT_MODELS[selectedProvider]) {
+                            document.getElementById('settingModel').value = PROVIDER_DEFAULT_MODELS[selectedProvider];
+                        }
                     });
                 }
-
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            } catch (error) {
-                console.error('Failed to load chat messages:', error);
             }
         }
 
-        // Delete chat session
-        async function deleteChatSession(key) {
-            if (!confirm('确定要删除会话 "' + key + '" 吗？')) return;
+        function cancelEdit() {
+            isEditMode = false;
+            loadSettings();
+            toggleEditMode();
+            if (isEditMode) toggleEditMode(); // 确保关闭编辑模式
+        }
+
+        async function saveSettingsDirect() {
+            // 检查选择的 Provider 是否已配置
+            const selectedProvider = document.getElementById('settingProvider').value;
+            if (selectedProvider !== 'auto' && !configuredProviders.has(selectedProvider)) {
+                const confirmed = confirm('⚠️ 你选择的 Provider (' + selectedProvider + ') 尚未配置，可能导致服务不可用。\n\n是否继续保存？');
+                if (!confirmed) return;
+            }
+
+            const temperature = parseFloat(document.getElementById('settingTemperature').value);
+            const maxTokens = parseInt(document.getElementById('settingMaxTokens').value);
+            const contextWindow = parseInt(document.getElementById('settingContextWindow').value);
+            const gatewayPort = parseInt(document.getElementById('settingGatewayPort').value);
+            const heartbeatInterval = parseInt(document.getElementById('settingHeartbeatInterval').value);
 
             try {
-                await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(key), {
-                    method: 'DELETE'
-                });
-
-                // If deleting current session, switch to default
-                if (key === state.sessionKey) {
-                    state.sessionKey = 'web:default';
-                }
-
-                await loadChatSessions();
-                if (state.sessionKey !== key) {
-                    loadChatMessages(state.sessionKey);
-                }
-            } catch (error) {
-                console.error('Failed to delete session:', error);
-                alert('删除失败：' + error.message);
-            }
-        }
-
-        function handleChatKeydown(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-            }
-        }
-
-        async function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-
-            if (!message || state.isLoading) return;
-
-            // Add user message
-            addChatMessage('user', message);
-
-            input.value = '';
-            autoResizeTextarea(input);
-
-            // Show typing indicator
-            showTypingIndicator();
-
-            state.isLoading = true;
-            document.getElementById('sendBtn').disabled = true;
-
-            try {
-                const response = await fetch(API_BASE + '/api/chat', {
+                const response = await fetch(API_BASE + '/api/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        message: message,
-                        session_key: state.sessionKey
+                        agents: {
+                            defaults: {
+                                provider: selectedProvider,
+                                model: document.getElementById('settingModel').value,
+                                temperature: temperature,
+                                max_tokens: maxTokens,
+                                context_window_tokens: contextWindow
+                            }
+                        },
+                        gateway: {
+                            port: gatewayPort,
+                            heartbeat: {
+                                interval_s: heartbeatInterval
+                            }
+                        }
                     })
                 });
 
-                // Remove typing indicator
-                removeTypingIndicator();
-
-                // Read SSE stream
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let assistantMessageDiv = null;
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.slice(6));
-
-                            if (data.type === 'progress') {
-                                // Show progress
-                                showProgress(data.content);
-                            } else if (data.type === 'response') {
-                                // Add or update assistant message
-                                if (!assistantMessageDiv) {
-                                    assistantMessageDiv = addChatMessage('assistant', data.content);
-                                } else {
-                                    assistantMessageDiv.querySelector('.message-body').textContent = data.content;
-                                }
-                            } else if (data.type === 'error') {
-                                addChatMessage('assistant', '错误：' + data.content);
-                            }
-                        }
-                    }
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    alert('✅ 配置已保存，部分修改需要重启服务后生效');
+                    toggleEditMode();
+                    loadSettings();
+                    loadDashboard(); // 刷新 Dashboard
+                } else {
+                    alert('保存失败：' + (result.message || '未知错误'));
                 }
-
-                // Refresh session list to update message count
-                loadChatSessions();
-
             } catch (error) {
-                removeTypingIndicator();
-                addChatMessage('assistant', '错误：' + error.message);
-            } finally {
-                state.isLoading = false;
-                document.getElementById('sendBtn').disabled = false;
+                alert('保存失败：' + error.message);
             }
         }
 
-        function addChatMessage(role, content, customTime = null) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const time = customTime || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        // Provider 选择变更监听
+        document.addEventListener('DOMContentLoaded', function() {
+            const providerSelect = document.getElementById('settingProvider');
+            if (providerSelect) {
+                providerSelect.addEventListener('change', async function() {
+                    const selectedProvider = this.value;
+                    try {
+                        const response = await fetch(API_BASE + '/api/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                agents: {
+                                    defaults: {
+                                        provider: selectedProvider
+                                    }
+                                }
+                            })
+                        });
+                        const result = await response.json();
+                        if (result.status === 'ok') {
+                            console.log('Provider 已更新为：', selectedProvider);
+                        }
+                    } catch (error) {
+                        console.error('更新 Provider 失败：', error);
+                    }
+                });
+            }
+        });
 
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message message-' + role;
-            messageDiv.innerHTML = `
-                <div class="message-avatar">${role === 'user' ? '👤' : '🤖'}</div>
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-name">${role === 'user' ? '你' : 'nanobot'}</span>
-                        <span class="message-time">${time}</span>
-                    </div>
-                    <div class="message-body">${formatMessage(content)}</div>
-                </div>
-            `;
-
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            return messageDiv;
+        // Channel config functions
+        function showProviderManager() {
+            // 打开 Provider 配置模态框，显示所有已配置的 Provider
+            loadProviders(); // 刷新 Provider 列表
+            alert('请在 Dashboard 的 Provider 状态卡片中点击某个 Provider 进行配置');
         }
 
-        function formatMessage(content) {
-            // Simple markdown-like formatting
-            return content
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-                .replace(/\\n/g, '<br>');
+        function showChannelManager() {
+            // 打开渠道管理模态框，显示所有渠道
+            loadChannels(); // 刷新渠道列表
+            alert('请在 Dashboard 的渠道状态卡片中点击某个渠道进行配置');
         }
 
-        function showTypingIndicator() {
-            const messagesDiv = document.getElementById('chatMessages');
-            const indicator = document.createElement('div');
-            indicator.id = 'typingIndicator';
-            indicator.className = 'message message-assistant';
-            indicator.innerHTML = `
-                <div class="message-avatar">🤖</div>
-                <div class="message-content">
-                    <div class="typing-indicator">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                    </div>
-                </div>
-            `;
-            messagesDiv.appendChild(indicator);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        function showChannelConfig(name) {
+            state.currentChannelName = name;
+
+            // Load channel config from API
+            fetch(API_BASE + '/api/channels')
+                .then(res => res.json())
+                .then(data => {
+                    const channel = data.channels.find(c => c.name === name);
+                    state.currentChannelConfig = channel ? channel.config : {};
+
+                    document.getElementById('channelConfigTitle').textContent = name;
+
+                    const formDiv = document.getElementById('channelConfigForm');
+                    formDiv.innerHTML = '';
+
+                    // Add enabled field
+                    const config = state.currentChannelConfig;
+                    formDiv.innerHTML += `
+                        <div class="form-group">
+                            <label class="form-label">启用</label>
+                            <label class="toggle-switch" style="display: inline-block;">
+                                <input type="checkbox" id="channelEnabled" ${config.enabled ? 'checked' : ''}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    `;
+
+                    // Add allowFrom field
+                    const allowFromValue = Array.isArray(config.allowFrom) ? config.allowFrom.join(', ') : '';
+                    formDiv.innerHTML += `
+                        <div class="form-group">
+                            <label class="form-label">允许的用户 IDs</label>
+                            <input type="text" class="form-input" id="channelAllowFrom" value="${allowFromValue}" placeholder="用逗号分隔，* 表示所有用户">
+                            <div class="form-description">例如：user123, user456 或 * 表示所有用户</div>
+                        </div>
+                    `;
+
+                    // Channel specific fields
+                    const channelSpecificFields = {
+                        telegram: ['token', 'proxy', 'replyToMessage', 'groupPolicy'],
+                        feishu: ['appId', 'appSecret', 'encryptKey', 'verificationToken', 'groupPolicy', 'reactEmoji'],
+                        slack: ['botToken', 'appToken', 'mode', 'webhookPath', 'replyInThread', 'groupPolicy'],
+                        dingtalk: ['clientId', 'clientSecret'],
+                        wecom: ['botId', 'secret'],
+                        discord: ['token', 'groupPolicy'],
+                        whatsapp: ['bridgeUrl', 'bridgeToken']
+                    };
+
+                    const fields = channelSpecificFields[name] || [];
+                    fields.forEach(field => {
+                        const value = config[field] !== undefined ? config[field] : '';
+                        const displayValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : (value || '');
+                        const isBoolean = typeof value === 'boolean';
+
+                        if (isBoolean) {
+                            formDiv.innerHTML += `
+                                <div class="form-group">
+                                    <label class="form-label">${field}</label>
+                                    <label class="toggle-switch" style="display: inline-block;">
+                                        <input type="checkbox" id="channel_${field}" ${value ? 'checked' : ''}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            `;
+                        } else {
+                            const inputType = field.includes('key') || field.includes('secret') || field.includes('Token') || field.includes('token') ? 'password' : 'text';
+                            formDiv.innerHTML += `
+                                <div class="form-group">
+                                    <label class="form-label">${field}</label>
+                                    <input type="${inputType}" class="form-input" id="channel_${field}" value="${displayValue}" placeholder="输入 ${field}">
+                                </div>
+                            `;
+                        }
+                    });
+
+                    document.getElementById('channelConfigModal').classList.add('active');
+                });
         }
 
-        function removeTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            if (indicator) indicator.remove();
+        function hideChannelConfig() {
+            document.getElementById('channelConfigModal').classList.remove('active');
+            state.currentChannelName = '';
+            state.currentChannelConfig = {};
         }
 
-        function showProgress(content) {
-            // Optional: Show progress steps
-            console.log('Progress:', content);
-        }
+        async function saveChannelConfig() {
+            const enabled = document.getElementById('channelEnabled').checked;
+            const allowFromStr = document.getElementById('channelAllowFrom').value.trim();
+            const allowFrom = allowFromStr ? allowFromStr.split(',').map(s => s.trim()) : [];
 
-        function autoResizeTextarea(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+            const config = {
+                enabled: enabled,
+                allowFrom: allowFrom.length === 0 ? [] : allowFrom
+            };
+
+            // Get other field values
+            const fieldIds = ['token', 'appId', 'appSecret', 'encryptKey', 'verificationToken', 'clientId', 'clientSecret', 'botId', 'secret', 'apiKey', 'apiBase', 'proxy', 'groupPolicy', 'replyToMessage', 'reactEmoji', 'mode', 'webhookPath', 'replyInThread', 'bridgeUrl', 'bridgeToken'];
+
+            fieldIds.forEach(field => {
+                const input = document.getElementById('channel_' + field);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        config[field] = input.checked;
+                    } else {
+                        const value = input.value.trim();
+                        if (value) config[field] = value;
+                    }
+                }
+            });
+
+            try {
+                const response = await fetch(API_BASE + '/api/channels/' + state.currentChannelName + '/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    alert('配置已保存，需要重启服务后生效');
+                    hideChannelConfig();
+                    loadChannels();
+                } else {
+                    alert('保存失败：' + (result.message || '未知错误'));
+                }
+            } catch (error) {
+                alert('保存失败：' + error.message);
+            }
         }
 
         // ============================================================
         // Cron Jobs - Chat Integration
         // ============================================================
-
-        // Quick create cron job from chat
         async function quickCreateCron(name, cronExpr, intervalS = null) {
             const message = `创建一个定时任务：${name}`;
             addChatMessage('user', message);
@@ -1809,12 +2893,10 @@
                 addChatMessage('assistant', '❌ 创建失败：' + error.message);
             }
 
-            // Scroll to bottom
             const messagesDiv = document.getElementById('chatMessages');
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // Show user's cron jobs in chat
         async function showMyCronJobs() {
             addChatMessage('user', '查看我的定时任务');
 
@@ -1824,15 +2906,15 @@
                 const jobs = data.jobs || [];
 
                 if (jobs.length === 0) {
-                    addChatMessage('assistant', '📋 你还没有定时任务\\n\\n点击"快捷操作"中的按钮或告诉我"创建一个每天早上 9 点的提醒"来添加定时任务。');
+                    addChatMessage('assistant', '📋 你还没有定时任务\n\n点击"快捷操作"中的按钮或告诉我"创建一个每天早上 9 点的提醒"来添加定时任务。');
                 } else {
-                    let content = '📋 **你的定时任务**\\n\\n';
+                    let content = '📋 **你的定时任务**\n\n';
                     jobs.forEach((job, index) => {
                         const schedule = job.schedule_kind === 'cron' && job.cron_expr
                             ? `Cron: ${job.cron_expr}`
                             : `每 ${job.interval_s || '?'} 秒`;
                         const status = job.enabled ? '✅' : '❌';
-                        content += `${index + 1}. ${status} ${job.name || 'Unnamed'}\\n   ${schedule}\\n\\n`;
+                        content += `${index + 1}. ${status} ${job.name || 'Unnamed'}\n   ${schedule}\n\n`;
                     });
                     addChatMessage('assistant', content);
                 }
@@ -1840,20 +2922,112 @@
                 addChatMessage('assistant', '❌ 获取失败：' + error.message);
             }
 
-            // Scroll to bottom
             const messagesDiv = document.getElementById('chatMessages');
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // ============================================================
+        // WebSocket for Real-time Events
+        // ============================================================
+        function connectWebSocket() {
+            // Close existing connection if any
+            if (state.websocket) {
+                state.websocket.close();
+                state.websocket = null;
+            }
+
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/events`;
+
+            console.log('[WebSocket] Connecting to', wsUrl);
+
+            try {
+                state.websocket = new WebSocket(wsUrl);
+            } catch (error) {
+                console.error('[WebSocket] Failed to create connection:', error);
+                return;
+            }
+
+            state.websocket.onopen = function(event) {
+                console.log('[WebSocket] ✅ Connected');
+                state.websocketReconnectDelay = 1000;
+            };
+
+            state.websocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'new_message') {
+                        handleNewMessage(data.data);
+                    } else if (data.type === 'ping') {
+                        // Heartbeat - ignore
+                    } else if (data.type === 'status') {
+                        console.log('[WebSocket] Status:', data.data);
+                    }
+                } catch (error) {
+                    console.error('[WebSocket] Error parsing message:', error, event.data);
+                }
+            };
+
+            state.websocket.onclose = function(event) {
+                console.log('[WebSocket] ❌ Disconnected, code:', event.code, 'reason:', event.reason || 'none');
+                state.websocket = null;
+                setTimeout(() => {
+                    console.log('[WebSocket] 🔄 Reconnecting in', state.websocketReconnectDelay + 'ms...');
+                    connectWebSocket();
+                }, state.websocketReconnectDelay);
+                state.websocketReconnectDelay = Math.min(state.websocketReconnectDelay * 2, 30000);
+            };
+
+            state.websocket.onerror = function(error) {
+                console.error('[WebSocket] ⚠️ Error:', error);
+            };
+        }
+
+        function handleNewMessage(data) {
+            const { session_key, message } = data;
+
+            // Only update if this is the currently active session
+            if (session_key === state.sessionKey && message) {
+                // Skip progress/tool messages
+                const metadata = message.metadata || {};
+                if (metadata._progress || metadata._tool_hint) {
+                    return;
+                }
+
+                // Skip tool role messages
+                if (message.role === 'tool') {
+                    return;
+                }
+
+                // Add the new message to the chat
+                const role = message.role === 'user' ? 'user' : 'assistant';
+                const time = message.timestamp
+                    ? new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                    : new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+                addChatMessage(role, message.content, time);
+
+                // Scroll to bottom
+                const messagesDiv = document.getElementById('chatMessages');
+                if (messagesDiv) {
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
+            }
+
+            // Also refresh session list to update timestamps
+            if (session_key.startsWith('web:')) {
+                loadChatSessions();
+            }
         }
 
         // ============================================================
         // Initialize
         // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Set welcome time
             document.getElementById('chatWelcomeTime').textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-
-            // Load dashboard
             loadDashboard();
+            // Connect to WebSocket for real-time events
+            connectWebSocket();
         });
     </script>
 </body>
