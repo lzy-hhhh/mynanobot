@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/a/**)",
+      "Read(//c/Users/a/.nanobot/workspace/skills/bidding-monitor/**)",
+      "Bash(dir \"C:\\\\Users\\\\a\\\\.claude\\\\skills\\\\bidding-monitor\\\\scripts\" /b)",
+      "Bash(python -c \"import json; data=json.load\\(open\\(''websites.json''\\)\\); print\\(json.dumps\\([data[''websites''][i] for i in [''1'',''2''] if i in data[''websites'']], indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python -c \"import json; data=json.load\\(open\\(''websites.json'', encoding=''utf-8''\\)\\); print\\(json.dumps\\([data[''websites''][i] for i in [''1'',''2''] if i in data[''websites'']], indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python -c \"import json; data=json.load\\(open\\(''websites.json'', encoding=''utf-8''\\)\\); print\\(json.dumps\\(list\\(data.values\\(\\)\\)[:2], indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(playwright-cli open:*)",
+      "Bash(playwright-cli run:*)",
+      "Bash(playwright-cli run-code:*)",
+      "Bash(playwright-cli click:*)",
+      "Bash(playwright-cli snapshot:*)",
+      "Bash(playwright-cli screenshot:*)",
+      "Bash(playwright-cli close-all:*)",
+      "Bash(playwright-cli close:*)",
+      "Bash(playwright-cli tab-select:*)",
+      "Bash(playwright-cli eval:*)"
+    ]
+  }
+}

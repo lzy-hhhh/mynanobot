@@ -3,6 +3,7 @@
 import asyncio
 import json
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,7 @@ from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.config.schema import ExecToolConfig
 from nanobot.providers.base import LLMProvider
-from nanobot.utils.helpers import build_assistant_message
+from nanobot.utils.helpers import build_assistant_message, ensure_dir
 
 
 class SubagentManager:
@@ -46,6 +47,9 @@ class SubagentManager:
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
         self._session_tasks: dict[str, set[str]] = {}  # session_key -> {task_id, ...}
 
+        # Subagent sessions directory
+        self.subagents_dir = ensure_dir(workspace / ".nanobot" / "subagents")
+
     async def spawn(
         self,
         task: str,
@@ -60,7 +64,7 @@ class SubagentManager:
         origin = {"channel": origin_channel, "chat_id": origin_chat_id}
 
         bg_task = asyncio.create_task(
-            self._run_subagent(task_id, task, display_label, origin)
+            self._run_subagent(task_id, task, display_label, origin, session_key)
         )
         self._running_tasks[task_id] = bg_task
         if session_key:
@@ -84,9 +88,14 @@ class SubagentManager:
         task: str,
         label: str,
         origin: dict[str, str],
+        session_key: str | None = None,
     ) -> None:
         """Execute the subagent task and announce the result."""
         logger.info("Subagent [{}] starting task: {}", task_id, label)
+
+        messages: list[dict[str, Any]] = []
+        status = "error"
+        final_result: str | None = None
 
         try:
             # Build subagent tools (no message tool, no spawn tool)
@@ -104,17 +113,16 @@ class SubagentManager:
             ))
             tools.register(WebSearchTool(config=self.web_search_config, proxy=self.web_proxy))
             tools.register(WebFetchTool(proxy=self.web_proxy))
-            
+
             system_prompt = self._build_subagent_prompt()
-            messages: list[dict[str, Any]] = [
+            messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": task},
             ]
 
             # Run agent loop (limited iterations)
-            max_iterations = 15
+            max_iterations = 1000
             iteration = 0
-            final_result: str | None = None
 
             while iteration < max_iterations:
                 iteration += 1
@@ -150,18 +158,26 @@ class SubagentManager:
                         })
                 else:
                     final_result = response.content
+                    status = "ok"
                     break
 
             if final_result is None:
                 final_result = "Task completed but no final response was generated."
+                status = "ok"
 
             logger.info("Subagent [{}] completed successfully", task_id)
-            await self._announce_result(task_id, label, task, final_result, origin, "ok")
 
         except Exception as e:
             error_msg = f"Error: {str(e)}"
             logger.error("Subagent [{}] failed: {}", task_id, e)
-            await self._announce_result(task_id, label, task, error_msg, origin, "error")
+            final_result = error_msg
+            status = "error"
+
+        # Save session to file
+        self._save_session(task_id, task, label, origin, session_key, messages, status, final_result)
+
+        # Announce result
+        await self._announce_result(task_id, label, task, final_result, origin, status)
 
     async def _announce_result(
         self,
@@ -230,3 +246,108 @@ Stay focused on the assigned task. Your final response will be reported back to 
     def get_running_count(self) -> int:
         """Return the number of currently running subagents."""
         return len(self._running_tasks)
+
+    def _save_session(
+        self,
+        task_id: str,
+        task: str,
+        label: str,
+        origin: dict[str, str],
+        session_key: str | None,
+        messages: list[dict[str, Any]],
+        status: str,
+        final_result: str,
+    ) -> None:
+        """Save subagent session to a JSONL file."""
+        from nanobot.config.schema import ExecToolConfig, WebSearchConfig
+
+        session_file = self.subagents_dir / f"{task_id}.jsonl"
+        created_at = datetime.now()
+
+        try:
+            with open(session_file, "w", encoding="utf-8") as f:
+                # Write metadata
+                metadata = {
+                    "_type": "metadata",
+                    "task_id": task_id,
+                    "label": label,
+                    "task": task,
+                    "origin": origin,
+                    "session_key": session_key,
+                    "status": status,
+                    "final_result": final_result,
+                    "created_at": created_at.isoformat(),
+                    "model": self.model,
+                }
+                f.write(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
+
+                # Write messages
+                for msg in messages:
+                    msg_with_timestamp = dict(msg)
+                    msg_with_timestamp["_timestamp"] = datetime.now().isoformat()
+                    f.write(json.dumps(msg_with_timestamp, ensure_ascii=False, indent=2) + "\n")
+
+            logger.info("Saved subagent session [{}] to {}", task_id, session_file)
+
+        except Exception as e:
+            logger.error("Failed to save subagent session [{}]: {}", task_id, e)
+
+    def list_sessions(self) -> list[dict[str, Any]]:
+        """List all subagent sessions."""
+        sessions = []
+
+        for path in self.subagents_dir.glob("*.jsonl"):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    first_line = f.readline().strip()
+                    if first_line:
+                        data = json.loads(first_line)
+                        if data.get("_type") == "metadata":
+                            sessions.append({
+                                "task_id": data.get("task_id", path.stem),
+                                "label": data.get("label"),
+                                "task": data.get("task"),
+                                "status": data.get("status"),
+                                "origin": data.get("origin"),
+                                "session_key": data.get("session_key"),
+                                "created_at": data.get("created_at"),
+                                "model": data.get("model"),
+                                "path": str(path),
+                            })
+            except Exception as e:
+                logger.warning("Failed to read subagent session {}: {}", path, e)
+
+        return sorted(sessions, key=lambda x: x.get("created_at", ""), reverse=True)
+
+    def get_session(self, task_id: str) -> dict[str, Any] | None:
+        """Get a specific subagent session by task_id."""
+        session_file = self.subagents_dir / f"{task_id}.jsonl"
+
+        if not session_file.exists():
+            return None
+
+        try:
+            metadata = None
+            messages = []
+
+            with open(session_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    if data.get("_type") == "metadata":
+                        metadata = data
+                    else:
+                        messages.append(data)
+
+            if metadata:
+                return {
+                    "metadata": metadata,
+                    "messages": messages,
+                }
+            return None
+
+        except Exception as e:
+            logger.error("Failed to get subagent session [{}]: {}", task_id, e)
+            return None

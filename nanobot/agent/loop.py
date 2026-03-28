@@ -267,6 +267,8 @@ class AgentLoop:
                 await self._handle_stop(msg)
             elif cmd == "/restart":
                 await self._handle_restart(msg)
+            elif cmd.startswith("/subagents"):
+                await self._handle_subagents(msg)
             else:
                 task = asyncio.create_task(self._dispatch(msg))
                 self._active_tasks.setdefault(msg.session_key, []).append(task)
@@ -301,6 +303,81 @@ class AgentLoop:
             os.execv(sys.executable, [sys.executable, "-m", "nanobot"] + sys.argv[1:])
 
         asyncio.create_task(_do_restart())
+
+    async def _handle_subagents(self, msg: InboundMessage) -> None:
+        """List subagent sessions or show details for a specific task_id."""
+        parts = msg.content.strip().split(maxsplit=1)
+        task_id = parts[1] if len(parts) > 1 else None
+
+        if task_id:
+            # Show details for a specific subagent
+            session = self.subagents.get_session(task_id)
+            if not session:
+                await self.bus.publish_outbound(OutboundMessage(
+                    channel=msg.channel, chat_id=msg.chat_id,
+                    content=f"Subagent session '{task_id}' not found.",
+                ))
+                return
+
+            metadata = session["metadata"]
+            messages = session["messages"]
+
+            status_emoji = "✅" if metadata.get("status") == "ok" else "❌"
+            content = f"""{status_emoji} **Subagent [{metadata.get('task_id')}]** {metadata.get('label', '')}
+
+**Status:** {metadata.get('status')}
+**Task:** {metadata.get('task')}
+**Origin:** {metadata.get('origin', {}).get('channel')}:{metadata.get('origin', {}).get('chat_id')}
+**Session:** {metadata.get('session_key', 'N/A')}
+**Model:** {metadata.get('model')}
+**Created:** {metadata.get('created_at')}
+**Messages:** {len(messages)}
+
+---
+**Conversation:**
+"""
+            for m in messages:
+                role = m.get("role", "unknown")
+                msg_content = m.get("content", "")
+                if role == "system":
+                    content += f"\n🤖 System: {msg_content[:200]}..."
+                elif role == "user":
+                    content += f"\n👤 User: {msg_content[:200]}..."
+                elif role == "tool":
+                    tool_name = m.get("name", "tool")
+                    content += f"\n🔧 Tool ({tool_name}): {str(msg_content)[:150]}..."
+
+            await self.bus.publish_outbound(OutboundMessage(
+                channel=msg.channel, chat_id=msg.chat_id, content=content,
+            ))
+        else:
+            # List all subagent sessions
+            sessions = self.subagents.list_sessions()
+            running = self.subagents.get_running_count()
+
+            if not sessions:
+                await self.bus.publish_outbound(OutboundMessage(
+                    channel=msg.channel, chat_id=msg.chat_id,
+                    content=f"No subagent sessions found. ({running} running)",
+                ))
+                return
+
+            lines = [f"📋 **Subagent Sessions** ({len(sessions)} total, {running} running)\n"]
+            for s in sessions[:20]:  # Limit to 20
+                status_emoji = "✅" if s.get("status") == "ok" else "❌"
+                task_preview = s.get("task", "")[:40] + "..." if len(s.get("task", "")) > 40 else s.get("task", "")
+                lines.append(
+                    f"- `{s['task_id']}` {status_emoji} [{s.get('label', 'N/A')}] {task_preview}"
+                )
+
+            if len(sessions) > 20:
+                lines.append(f"\n... and {len(sessions) - 20} more. Use `/subagents <task_id>` to view details.")
+
+            lines.append("\nUse `/subagents <task_id>` to view conversation details.")
+
+            await self.bus.publish_outbound(OutboundMessage(
+                channel=msg.channel, chat_id=msg.chat_id, content="\n".join(lines),
+            ))
 
     async def _dispatch(self, msg: InboundMessage) -> None:
         """Process a message under the global lock."""
@@ -401,6 +478,8 @@ class AgentLoop:
                 "/new — Start a new conversation",
                 "/stop — Stop the current task",
                 "/restart — Restart the bot",
+                "/subagents — List all subagent sessions",
+                "/subagents <task_id> — Show subagent conversation details",
                 "/help — Show available commands",
             ]
             return OutboundMessage(
